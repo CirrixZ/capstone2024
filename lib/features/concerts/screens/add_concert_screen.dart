@@ -293,7 +293,7 @@ class AddConcertScreenState extends State<AddConcertScreen> {
       child: TextFormField(
         controller: controller,
         maxLines: maxLines,
-        style: TextStyle(color: Colors.grey),
+        style: TextStyle(color: Colors.white),
         decoration: InputDecoration(
           labelText: label,
           labelStyle: TextStyle(color: Colors.white70),
