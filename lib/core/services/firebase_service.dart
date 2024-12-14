@@ -16,7 +16,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 class FirebaseService {
@@ -1831,32 +1830,6 @@ class FirebaseService {
       await batch.commit();
     } catch (e) {
       throw Exception('Failed to clear notifications: $e');
-    }
-  }
-
-// Add this helper method for handling notification settings
-  Future<void> _checkNotificationPreferences({
-    required String userId,
-    required NotificationType type,
-  }) async {
-    DocumentSnapshot userDoc =
-        await _firestore.collection('users').doc(userId).get();
-
-    if (!userDoc.exists) return;
-
-    Map<String, dynamic>? settings =
-        (userDoc.data() as Map<String, dynamic>)['notificationSettings'];
-
-    // Check if sound/vibration should be played
-    bool playSound = settings?['soundEnabled'] ?? true;
-    bool useVibration = settings?['vibrationEnabled'] ?? true;
-
-    if (playSound) {
-      SystemSound.play(SystemSoundType.alert);
-    }
-
-    if (useVibration) {
-      HapticFeedback.mediumImpact();
     }
   }
 
