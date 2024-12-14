@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "51164842173",
+    "project_id": "capstone-project-year2024",
+    "storage_bucket": "capstone-project-year2024.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:51164842173:android:ff2300fb2a06957e240fd4",
+        "android_client_info": {
+          "package_name": "com.metaconcert.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAm9FbGgD1H6cBcTjOVZ0FSAWJ8kNcwDqk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
