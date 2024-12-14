@@ -9,6 +9,8 @@ import 'package:intl/intl.dart';
 class CarpoolsTab extends StatelessWidget {
   final FirebaseService _firebaseService = FirebaseService();
 
+  CarpoolsTab({super.key});
+
   Future<Map<String, String>> _getCarpoolDetails(String chatRoomId) async {
     // Search through all concerts to find the carpool
     QuerySnapshot concertSnapshot =

@@ -5,6 +5,8 @@ import 'package:capstone/features/verification/models/ticket_verification_model.
 class TicketApprovalsPage extends StatelessWidget {
   final FirebaseService _firebaseService = FirebaseService();
 
+  TicketApprovalsPage({super.key});
+
   Future<void> _showImageDialog(BuildContext context, String imageUrl) {
     return showDialog(
       context: context,

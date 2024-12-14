@@ -8,6 +8,8 @@ import 'package:intl/intl.dart';
 class GroupChatsTab extends StatelessWidget {
   final FirebaseService _firebaseService = FirebaseService();
 
+  GroupChatsTab({super.key});
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<ChatPreview>>(

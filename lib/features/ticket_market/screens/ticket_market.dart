@@ -9,7 +9,7 @@ class TicketMarketPage extends StatelessWidget {
   final FirebaseService _firebaseService = FirebaseService();
   final String concertId;
 
-  TicketMarketPage({Key? key, required this.concertId}) : super(key: key);
+  TicketMarketPage({super.key, required this.concertId});
 
   void _showAddTicketDialog(BuildContext context) {
     final nameController = TextEditingController();

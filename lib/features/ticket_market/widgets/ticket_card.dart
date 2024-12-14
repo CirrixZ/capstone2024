@@ -10,10 +10,10 @@ class TicketCard extends StatelessWidget {
   final FirebaseService _firebaseService = FirebaseService();
 
   TicketCard({
-    Key? key,
+    super.key,
     required this.ticket,
     required this.concertId,
-  }) : super(key: key);
+  });
 
   Future<void> _showDeleteDialog(BuildContext context) async {
     return showDialog(

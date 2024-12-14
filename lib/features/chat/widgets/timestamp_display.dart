@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 class TimestampDisplay extends StatelessWidget {
   final DateTime timestamp;
 
-  const TimestampDisplay({Key? key, required this.timestamp}) : super(key: key);
+  const TimestampDisplay({super.key, required this.timestamp});
 
   @override
   Widget build(BuildContext context) {

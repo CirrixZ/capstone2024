@@ -7,17 +7,17 @@ class GroupChatPreview extends StatelessWidget {
   final VoidCallback onTap;
 
   const GroupChatPreview({
-    Key? key,
+    super.key,
     required this.chatPreview,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
       leading: CircleAvatar(
-        child: Icon(Icons.group, color: Colors.white),
         backgroundColor: Color(0xFF2F1552),
+        child: Icon(Icons.group, color: Colors.white),
       ),
       title: Text(chatPreview.name, style: TextStyle(color: Colors.white)),
       subtitle: Column(

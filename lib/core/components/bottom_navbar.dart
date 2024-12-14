@@ -14,10 +14,10 @@ class BottomNavBar extends StatefulWidget {
   final int initialIndex;
 
   const BottomNavBar({
-    Key? key,
+    super.key,
     required this.concertId,
     this.initialIndex = 0,
-  }) : super(key: key);
+  });
 
   @override
   State<BottomNavBar> createState() => _BottomNavBarState();

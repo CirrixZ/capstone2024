@@ -6,9 +6,9 @@ class BanHistoryDialog extends StatelessWidget {
   final UserModel user;
 
   const BanHistoryDialog({
-    Key? key,
+    super.key,
     required this.user,
-  }) : super(key: key);
+  });
 
   String _formatDuration(DateTime start, DateTime? end) {
     if (end == null) return 'Permanent';
@@ -29,8 +29,9 @@ class BanHistoryDialog extends StatelessWidget {
 
   bool _isBanActive(BanRecord ban) {
     if (!ban.isActive) return false;
-    if (ban.endDate == null)
+    if (ban.endDate == null) {
       return true; // Permanent ban is always active if not explicitly deactivated
+    }
     return ban.endDate!.isAfter(DateTime.now());
   }
 

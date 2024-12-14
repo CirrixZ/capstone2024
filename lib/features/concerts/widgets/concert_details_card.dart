@@ -11,11 +11,11 @@ class ConcertDetailsCard extends StatelessWidget {
   final String concertId;
 
   const ConcertDetailsCard({
-    Key? key,
+    super.key,
     required this.concert,
     required this.isAdmin,
     required this.concertId,
-  }) : super(key: key);
+  });
 
   String _formatDate(String date) {
     try {

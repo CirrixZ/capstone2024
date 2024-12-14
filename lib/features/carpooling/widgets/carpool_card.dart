@@ -11,11 +11,11 @@ class CarpoolCard extends StatelessWidget {
   final FirebaseService _firebaseService = FirebaseService();
 
   CarpoolCard({
-    Key? key,
+    super.key,
     required this.carpool,
     required this.onJoin,
     required this.concertId,
-  }) : super(key: key);
+  });
 
   Future<void> _showDeleteDialog(BuildContext context) async {
     return showDialog(
@@ -140,8 +140,9 @@ class CarpoolCard extends StatelessWidget {
                                   .doc(carpool.driverId)
                                   .snapshots(),
                               builder: (context, snapshot) {
-                                if (!snapshot.hasData)
+                                if (!snapshot.hasData) {
                                   return const SizedBox.shrink();
+                                }
 
                                 final userData = snapshot.data?.data()
                                     as Map<String, dynamic>?;

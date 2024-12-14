@@ -7,11 +7,11 @@ class EmailVerificationStatus extends StatelessWidget {
   final String? cooldownMessage;
 
   const EmailVerificationStatus({
-    Key? key,
+    super.key,
     required this.isVerified,
     this.onSendVerification,
     this.cooldownMessage,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -11,11 +11,11 @@ class GroupCard extends StatelessWidget {
   final FirebaseService _firebaseService = FirebaseService(); // Add this
 
   GroupCard({
-    Key? key,
+    super.key,
     required this.group,
     required this.onJoin,
     required this.concertId, // Add this
-  }) : super(key: key);
+  });
 
   Future<void> _showDeleteDialog(BuildContext context) async {
     return showDialog(

@@ -9,7 +9,7 @@ import 'package:capstone/features/notifications/screens/notifications.dart';
 class NotificationIconButton extends StatelessWidget {
   final FirebaseService _firebaseService = FirebaseService();
 
-  NotificationIconButton({Key? key}) : super(key: key);
+  NotificationIconButton({super.key});
 
   @override
   Widget build(BuildContext context) {

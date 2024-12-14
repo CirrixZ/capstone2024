@@ -19,11 +19,11 @@ class BanManagementDialog extends StatelessWidget {
   final bool isSuperAdmin;
 
   const BanManagementDialog({
-    Key? key,
+    super.key,
     required this.user,
     required this.onBanConfirmed,
     this.isSuperAdmin = false,
-  }) : super(key: key);
+  });
 
   static const List<BanDuration> banDurations = [
     BanDuration(label: '1 Day', duration: Duration(days: 1)),

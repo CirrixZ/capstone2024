@@ -18,7 +18,7 @@ class MessageDetailsDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final FirebaseService _firebaseService = FirebaseService();
+    final FirebaseService firebaseService = FirebaseService();
 
     return AlertDialog(
       backgroundColor: const Color(0xFF2F1552),
@@ -73,7 +73,7 @@ class MessageDetailsDialog extends StatelessWidget {
           TextButton(
             onPressed: () async {
               try {
-                await _firebaseService.deleteMessage(chatRoomId, message.id);
+                await firebaseService.deleteMessage(chatRoomId, message.id);
                 if (context.mounted) Navigator.pop(context);
               } catch (e) {
                 if (context.mounted) {

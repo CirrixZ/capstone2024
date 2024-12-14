@@ -5,7 +5,7 @@ import 'package:capstone/core/services/firebase_service.dart';
 class NotificationSettingsPage extends StatelessWidget {
   final FirebaseService _firebaseService = FirebaseService();
 
-  NotificationSettingsPage({Key? key}) : super(key: key);
+  NotificationSettingsPage({super.key});
 
   @override
   Widget build(BuildContext context) {

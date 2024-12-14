@@ -9,10 +9,10 @@ class CarpoolChatPreview extends StatelessWidget {
   final FirebaseService _firebaseService = FirebaseService(); // Add this
 
   CarpoolChatPreview({
-    Key? key,
+    super.key,
     required this.chatPreview,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

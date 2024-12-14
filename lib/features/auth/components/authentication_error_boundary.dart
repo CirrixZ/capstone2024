@@ -8,11 +8,11 @@ class AuthErrorBoundary extends StatelessWidget {
   final Function(FirebaseAuthException)? onAuthError;
 
   const AuthErrorBoundary({
-    Key? key,
+    super.key,
     required this.child,
     this.onRetry,
     this.onAuthError,
-  }) : super(key: key);
+  });
 
   String _getAuthErrorMessage(FirebaseAuthException e) {
     switch (e.code) {

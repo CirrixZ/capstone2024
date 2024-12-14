@@ -266,7 +266,7 @@ class _CarpoolInfoPageState extends State<CarpoolInfoPage> {
                         children: [
                           const Icon(Icons.star, color: Colors.amber),
                           Text(
-                            ' ${driverRating.toStringAsFixed(1)} (${totalRatings} ratings)',
+                            ' ${driverRating.toStringAsFixed(1)} ($totalRatings ratings)',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 16,

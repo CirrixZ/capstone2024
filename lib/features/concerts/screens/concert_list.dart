@@ -9,7 +9,7 @@ import 'package:capstone/core/services/firebase_service.dart';
 import 'package:capstone/features/concerts/screens/add_concert_screen.dart';
 
 class ConcertList extends StatefulWidget {
-  const ConcertList({Key? key}) : super(key: key);
+  const ConcertList({super.key});
 
   @override
   _ConcertListState createState() => _ConcertListState();

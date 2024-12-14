@@ -9,12 +9,12 @@ class ChatMessageBubble extends StatelessWidget {
   final String chatRoomId;
 
   const ChatMessageBubble({
-    Key? key,
+    super.key,
     required this.message,
     required this.isMe,
     required this.chatRoomId,
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

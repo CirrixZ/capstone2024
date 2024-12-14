@@ -6,9 +6,9 @@ class TicketVerificationDialog extends StatelessWidget {
   final Function(File) onSubmit;
 
   const TicketVerificationDialog({
-    Key? key,
+    super.key,
     required this.onSubmit,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
