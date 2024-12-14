@@ -61,7 +61,7 @@ class FirebaseService {
     return Exception('An unexpected error occurred: ${e.toString()}');
   }
 
-  // ***Authentication Methods***
+  // ***AUTHENTICATION METHODS***
   // Sign up method
   Future<UserCredential> signUp(String email, String password) async {
     // Create the auth user first
@@ -220,7 +220,7 @@ class FirebaseService {
     }
   }
 
-  // ***Concert Methods***
+  // ***CONCERT METHODS***
   // Gets all concert stream
   Stream<List<Concert>> getConcerts() {
     return _firestore.collection('concerts').snapshots().map((snapshot) {
@@ -430,7 +430,7 @@ class FirebaseService {
     }
   }
 
-  //***Chat Methods***
+  //***CHAT METHODS***
   // Gets all messages in a chat room
   Stream<List<Message>> getMessages(String chatRoomId) {
     return _firestore
@@ -744,7 +744,7 @@ class FirebaseService {
     await batch.commit();
   }
 
-  // ***Carpool Methods***
+  // ***CARPOOL METHODS***
   // Gets list of carpools of a concert
   Stream<List<Carpool>> getCarpools(String concertId) {
     final userId = currentUser?.uid;
@@ -1353,8 +1353,7 @@ class FirebaseService {
     });
   }
 
-  // ***Group Methods***
-
+  // ***GROUP METHODS***
   // Gets all groups in a concert
   Stream<List<Group>> getGroups(String concertId) {
     return _firestore
@@ -1680,7 +1679,7 @@ class FirebaseService {
         .delete();
   }
 
-  // ***Ticket and Verification Methods***
+  // ***TICKET AND VERIFICATION METHODS***
   // Gets list of tickets of a concert
   Stream<List<Ticket>> getTickets(String concertId) {
     return _firestore
@@ -1992,7 +1991,7 @@ class FirebaseService {
     );
   }
 
-  // ***Notification Methods***
+  // ***NOTIFICATION METHODS***
   // Creates notif for specific users
   Future<void> createNotification({
     required NotificationType type,
@@ -2703,7 +2702,6 @@ class FirebaseService {
   }
 
   // **Email Verification**
-
   // Used to update email verification status for faster checking (if changes happen)
   Future<void> updateEmailVerificationStatus(String userId) async {
     User? user = FirebaseAuth.instance.currentUser;
