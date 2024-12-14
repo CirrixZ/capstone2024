@@ -61,140 +61,16 @@ class FirebaseService {
     return Exception('An unexpected error occurred: ${e.toString()}');
   }
 
-  // Add this batch notification sender
-  Future<void> sendBatchNotifications({
-    required List<String> recipients,
-    required NotificationType type,
-    required String message,
-    String? concertId,
-    String? chatRoomId,
-    String? ticketId,
-    String? senderId,
-  }) async {
-    final batch = _firestore.batch();
-
-    for (String userId in recipients) {
-      if (!await shouldSendNotification(userId, type)) continue;
-
-      DocumentReference notifRef =
-          _users.doc(userId).collection('notifications').doc();
-
-      batch.set(notifRef, {
-        'type': type.toString().split('.').last,
-        'message': message,
-        'concertId': concertId,
-        'chatRoomId': chatRoomId,
-        'ticketId': ticketId,
-        'senderId': senderId,
-        'timestamp': FieldValue.serverTimestamp(),
-        'isRead': false,
-      });
-    }
-
-    await batch.commit();
-  }
-
-  // Add this helper method for getting users subscribed to updates
-  Future<List<String>> _getUpdatesSubscribers({NotificationType? type}) async {
-    String settingKey;
-    switch (type) {
-      case NotificationType.CONCERT_UPDATE:
-        settingKey = 'concertUpdates';
-        break;
-      case NotificationType.TICKET_UPDATE:
-        settingKey = 'ticketUpdates';
-        break;
-      case NotificationType.GROUP_MESSAGE:
-        settingKey = 'groupMessages';
-        break;
-      case NotificationType.CARPOOL_MESSAGE:
-        settingKey = 'carpoolMessages';
-        break;
-      default:
-        settingKey = 'concertUpdates';
-    }
-
-    QuerySnapshot snapshot = await _users
-        .where('notificationSettings.$settingKey', isEqualTo: true)
-        .get();
-
-    return snapshot.docs.map((doc) => doc.id).toList();
-  }
-
-  // Add this combined members getter
-  Stream<List<UserModel>> getChatRoomMembers(String chatRoomId) {
-    return _chatRooms.doc(chatRoomId).snapshots().asyncMap((doc) async {
-      List<String> participants =
-          List<String>.from(doc.get('participants') ?? []);
-      List<UserModel> members = [];
-
-      for (String userId in participants) {
-        DocumentSnapshot userDoc = await _users.doc(userId).get();
-        if (userDoc.exists) {
-          members.add(UserModel.fromMap(
-            userDoc.data() as Map<String, dynamic>,
-            userDoc.id,
-          ));
-        }
-      }
-
-      return members;
-    });
-  }
-
-  // Sign up & sign in methods
+  // ***Authentication Methods***
+  // Sign up method
   Future<UserCredential> signUp(String email, String password) async {
     // Create the auth user first
     final credential = await _auth.createUserWithEmailAndPassword(
         email: email, password: password);
 
-    // Don't try to update the document, as it will be created in the RegisterPage
-    // Remove the update attempt since the document doesn't exist yet
+    // Notes to self, don't try to update the document, as it will be created in the RegisterPage
 
     return credential;
-  }
-
-  // Check ban status of user
-  Future<void> enforceUserStatus() async {
-    User? user = currentUser;
-    if (user == null) return;
-
-    DocumentSnapshot userDoc =
-        await _firestore.collection('users').doc(user.uid).get();
-
-    if (!userDoc.exists) return;
-
-    final userData = userDoc.data() as Map<String, dynamic>;
-    final isBanned = userData['isBanned'] ?? false;
-    final currentBanEnd = userData['currentBanEnd'] as Timestamp?;
-
-    if (isBanned) {
-      // Check if it's a temporary ban that has expired
-      if (currentBanEnd != null &&
-          currentBanEnd.toDate().isBefore(DateTime.now())) {
-        // Ban has expired, automatically unban the user
-        await unbanUser(user.uid);
-      } else {
-        // User is still banned (either permanent or temporary ban still active)
-        await signOut();
-        // Create a more informative error message
-        final banMessage = currentBanEnd != null
-            ? 'Account suspended until ${currentBanEnd.toDate().toLocal()}'
-            : 'Account permanently suspended';
-        throw Exception(banMessage);
-      }
-    }
-  }
-
-  Stream<bool> isUserBanned() {
-    User? user = currentUser;
-    if (user == null) return Stream.value(false);
-
-    return _firestore
-        .collection('users')
-        .doc(user.uid)
-        .snapshots()
-        .map((doc) => doc.data()?['isBanned'] ?? false);
   }
 
   // Sign-in method with ban check
@@ -245,6 +121,7 @@ class FirebaseService {
     return credential;
   }
 
+  // Admin Sign In: Special login for admin users
   Future<UserCredential> signInAdmin(String email, String password) async {
     UserCredential credential = await _auth.signInWithEmailAndPassword(
       email: email,
@@ -270,6 +147,12 @@ class FirebaseService {
     return credential;
   }
 
+  // Signs out current user
+  Future<void> signOut() async {
+    await _auth.signOut();
+  }
+
+  // Checks if user is admin
   Future<bool> isUserAdmin() async {
     User? user = _auth.currentUser;
     if (user != null) {
@@ -303,109 +186,19 @@ class FirebaseService {
         .map((snapshot) => snapshot.data()?['isSuperAdmin'] == true);
   }
 
-  Future<void> signOut() async {
-    await _auth.signOut();
-  }
+  // Stream for admin status
+  Stream<bool> userAdminStream() {
+    User? user = _auth.currentUser;
+    if (user == null) return Stream.value(false);
 
-  Future<bool> isUsernameAvailable(String username) async {
-    if (username.length < 3 || username.length > 20) {
-      return false;
-    }
-    final querySnapshot = await _firestore
+    return _firestore
         .collection('users')
-        .where('username', isEqualTo: username)
-        .get();
-    return querySnapshot.docs.isEmpty;
+        .doc(user.uid)
+        .snapshots()
+        .map((snapshot) => snapshot.data()?['isAdmin'] == true);
   }
 
-  // Fetch user data(for concert list and chat atm)
-  Future<Map<String, dynamic>> getUserData(String uid) async {
-    DocumentSnapshot userDoc =
-        await _firestore.collection('users').doc(uid).get();
-    return userDoc.data() as Map<String, dynamic>;
-  }
-
-  // Profile page methods
-  Future<Map<String, dynamic>> getUserProfile() async {
-    User? user = _auth.currentUser;
-    if (user != null) {
-      DocumentSnapshot doc =
-          await _firestore.collection('users').doc(user.uid).get();
-      return doc.data() as Map<String, dynamic>;
-    }
-    throw Exception('User not found');
-  }
-
-  // In FirebaseService
-  Future<void> updateUserProfile({
-    String? firstName,
-    String? lastName,
-    String? username,
-    String? email,
-    String? newPassword,
-    required String currentPassword,
-  }) async {
-    User? user = _auth.currentUser;
-    if (user == null) throw Exception('User not found');
-
-    // Re-authenticate user
-    AuthCredential credential = EmailAuthProvider.credential(
-      email: user.email!,
-      password: currentPassword,
-    );
-    await user.reauthenticateWithCredential(credential);
-
-    // Update Firestore document
-    Map<String, dynamic> updates = {};
-    if (firstName != null) updates['firstName'] = firstName;
-    if (lastName != null) updates['lastName'] = lastName;
-
-    // Only check username availability if username is being updated
-    if (username != null) {
-      // Check if the new username is different from current username
-      DocumentSnapshot doc =
-          await _firestore.collection('users').doc(user.uid).get();
-      String currentUsername = doc.get('username') ?? '';
-
-      if (username != currentUsername) {
-        bool isAvailable = await isUsernameAvailable(username);
-        if (!isAvailable) throw Exception('Username is already taken');
-
-        Timestamp? lastUsernameChange =
-            doc.get('lastUsernameChange') as Timestamp?;
-        if (lastUsernameChange != null) {
-          Duration difference =
-              Timestamp.now().toDate().difference(lastUsernameChange.toDate());
-          if (difference.inDays < 30) {
-            throw Exception(
-                'You can only change your username once every 30 days');
-          }
-        }
-
-        updates['username'] = username;
-        updates['lastUsernameChange'] = Timestamp.now();
-      }
-    }
-
-    if (updates.isNotEmpty) {
-      await _firestore.collection('users').doc(user.uid).update(updates);
-    }
-
-    // Update email if changed
-    if (email != null && email != user.email) {
-      try {
-        await user.verifyBeforeUpdateEmail(email);
-      } catch (e) {
-        throw Exception('Failed to update email: ${e.toString()}');
-      }
-    }
-
-    // Update password if provided
-    if (newPassword != null) {
-      await user.updatePassword(newPassword);
-    }
-  }
-
+  // Deletes user account
   Future<void> deleteUserAccount(String password) async {
     User? user = currentUser;
     if (user == null) throw Exception('No user found');
@@ -427,7 +220,8 @@ class FirebaseService {
     }
   }
 
-  // Concert methods
+  // ***Concert Methods***
+  // Gets all concert stream
   Stream<List<Concert>> getConcerts() {
     return _firestore.collection('concerts').snapshots().map((snapshot) {
       return snapshot.docs
@@ -436,17 +230,110 @@ class FirebaseService {
     });
   }
 
-  Future<void> addConcert(Concert concert) async {
-    await _firestore.collection('concerts').add(concert.toMap());
-  }
-
-  Future<void> updateConcert(String concertId, Concert concert) async {
-    await _firestore
+  // Gets details of specific concert
+  Stream<Concert> getConcertDetails(String concertId) {
+    return _firestore
         .collection('concerts')
         .doc(concertId)
-        .update(concert.toMap());
+        .snapshots()
+        .map((doc) {
+      return Concert.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+    });
   }
 
+  // Creates new concert with all needed details
+  Future<void> createConcert({
+    required String imageUrl,
+    required String artistName,
+    required String concertName,
+    required List<String> description,
+    required List<String> dates,
+    required String location,
+    required String artistDetails,
+  }) async {
+    try {
+      DocumentReference concertRef =
+          await _firestore.collection('concerts').add({
+        'imageUrl': imageUrl,
+        'artistName': artistName,
+        'concertName': concertName,
+        'description': description,
+        'dates': dates,
+        'location': location,
+        'artistDetails': artistDetails,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // Create subcollections
+      await concertRef.collection('groups').add({});
+      await concertRef.collection('carpools').add({});
+
+      // Delete the empty documents after creating the collections
+      await concertRef.collection('groups').get().then((snapshot) {
+        for (DocumentSnapshot doc in snapshot.docs) {
+          doc.reference.delete();
+        }
+      });
+      await concertRef.collection('carpools').get().then((snapshot) {
+        for (DocumentSnapshot doc in snapshot.docs) {
+          doc.reference.delete();
+        }
+      });
+    } catch (e) {
+      throw Exception('Failed to create concert: $e');
+    }
+  }
+
+  // Updates specific concert details
+  Future<void> updateConcertDetails(
+    String concertId, {
+    // Made concertId a required parameter
+    String? imageUrl,
+    String? artistName,
+    String? concertName,
+    List<String>? description,
+    String? artistDetails,
+    DateTime? mainDate,
+    List<String>? dates,
+    String? location,
+  }) async {
+    if (!await isUserAdmin()) {
+      throw Exception('Unauthorized: Admin access required');
+    }
+
+    try {
+      Map<String, dynamic> updates = {};
+      if (imageUrl != null) updates['imageUrl'] = imageUrl;
+      if (artistName != null) updates['artistName'] = artistName;
+      if (concertName != null) updates['concertName'] = concertName;
+      if (description != null) updates['description'] = description;
+      if (artistDetails != null) updates['artistDetails'] = artistDetails;
+      if (mainDate != null) updates['date'] = Timestamp.fromDate(mainDate);
+      if (dates != null) updates['dates'] = dates;
+      if (location != null) updates['location'] = location;
+
+      if (updates.isEmpty) return;
+
+      await _concerts.doc(concertId).update(updates);
+
+      // Get all subscribed users and send notifications
+      final recipients =
+          await _getUpdatesSubscribers(type: NotificationType.CONCERT_UPDATE);
+
+      if (recipients.isNotEmpty) {
+        await sendBatchNotifications(
+          recipients: recipients,
+          type: NotificationType.CONCERT_UPDATE,
+          message: 'Concert details have been updated',
+          concertId: concertId,
+        );
+      }
+    } catch (e) {
+      throw _handleFirebaseError(e);
+    }
+  }
+
+  // Deletes concert
   Future<void> deleteConcert(String concertId) async {
     // Only super admins can delete concerts
     if (!await isUserSuperAdmin()) {
@@ -455,58 +342,63 @@ class FirebaseService {
     await _firestore.collection('concerts').doc(concertId).delete();
   }
 
-  // Group methods
-  Stream<List<Group>> getGroups(String concertId) {
-    return _firestore
+  // Deletes concert and all related data
+  Future<void> deleteConcertAndData(String concertId) async {
+    if (!await isUserSuperAdmin()) {
+      throw Exception('Unauthorized: Super Admin access required');
+    }
+
+    // Get all chat rooms associated with this concert's groups and carpools
+    final groupsSnapshot = await _firestore
         .collection('concerts')
         .doc(concertId)
         .collection('groups')
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => Group.fromMap(doc.data(), doc.id))
-          .toList();
-    });
-  }
+        .get();
 
-  Future<void> addGroup(String concertId, Group group) async {
-    await _firestore
-        .collection('concerts')
-        .doc(concertId)
-        .collection('groups')
-        .add(group.toMap());
-  }
-
-  // Carpool methods
-  Stream<List<Carpool>> getCarpools(String concertId) {
-    final userId = currentUser?.uid;
-
-    return _firestore
+    final carpoolsSnapshot = await _firestore
         .collection('concerts')
         .doc(concertId)
         .collection('carpools')
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => Carpool.fromMap(doc.data(), doc.id))
-          .where((carpool) =>
-                  carpool.availableSlots > 0 || // Has slots OR
-                  carpool.driverId == userId || // Is owner OR
-                  carpool.passengers.contains(userId) // Is member
-              )
-          .toList();
-    });
-  }
+        .get();
 
-  Future<void> addCarpool(String concertId, Carpool carpool) async {
-    await _firestore
+    // Delete all chat rooms
+    for (var doc in groupsSnapshot.docs) {
+      final chatRoomId = doc.data()['chatRoomId'] as String?;
+      if (chatRoomId?.isNotEmpty ?? false) {
+        await _firestore.collection('chatRooms').doc(chatRoomId).delete();
+      }
+    }
+
+    for (var doc in carpoolsSnapshot.docs) {
+      final chatRoomId = doc.data()['chatRoomId'] as String?;
+      if (chatRoomId?.isNotEmpty ?? false) {
+        await _firestore.collection('chatRooms').doc(chatRoomId).delete();
+      }
+    }
+
+    // Delete all subcollections
+    await _deleteCollection(
+        _firestore.collection('concerts').doc(concertId).collection('groups'));
+    await _deleteCollection(_firestore
         .collection('concerts')
         .doc(concertId)
-        .collection('carpools')
-        .add(carpool.toMap());
+        .collection('carpools'));
+    await _deleteCollection(
+        _firestore.collection('concerts').doc(concertId).collection('tickets'));
+
+    // Finally delete the concert document
+    await _firestore.collection('concerts').doc(concertId).delete();
   }
 
-  // Analytics methods
+// Helper method to delete a collection
+  Future<void> _deleteCollection(CollectionReference collection) async {
+    final snapshot = await collection.get();
+    for (var doc in snapshot.docs) {
+      await doc.reference.delete();
+    }
+  }
+
+  // Gets analytics for a specific concert
   Future<Map<String, dynamic>> getConcertAnalytics(String concertId) async {
     try {
       var concertDoc =
@@ -538,32 +430,8 @@ class FirebaseService {
     }
   }
 
-  // Concert Details Method
-  Stream<Concert> getConcertDetails(String concertId) {
-    return _firestore
-        .collection('concerts')
-        .doc(concertId)
-        .snapshots()
-        .map((doc) {
-      return Concert.fromMap(doc.data() as Map<String, dynamic>, doc.id);
-    });
-  }
-
-  // Concert Tickets Method
-  Stream<List<Ticket>> getTickets(String concertId) {
-    return _firestore
-        .collection('concerts')
-        .doc(concertId)
-        .collection('tickets')
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => Ticket.fromMap(doc.data(), doc.id))
-          .toList();
-    });
-  }
-
-  // Chat methods
+  //***Chat Methods***
+  // Gets all messages in a chat room
   Stream<List<Message>> getMessages(String chatRoomId) {
     return _firestore
         .collection('chatRooms')
@@ -576,6 +444,7 @@ class FirebaseService {
             .toList());
   }
 
+  // Sends text message to chats
   Future<void> sendMessage(String chatRoomId, String text) async {
     final message = Message(
       id: '',
@@ -631,6 +500,32 @@ class FirebaseService {
     }
   }
 
+  // Sends image to chats
+  Future<void> sendImage(String chatRoomId, String imagePath) async {
+    final ref = _storage
+        .ref()
+        .child('chat_images/${DateTime.now().millisecondsSinceEpoch}.jpg');
+    await ref.putFile(File(imagePath));
+    final url = await ref.getDownloadURL();
+
+    final message = Message(
+      id: '',
+      senderId: currentUser!.uid,
+      text: '',
+      imageUrl: url,
+      timestamp: Timestamp.now(),
+    );
+
+    await _firestore
+        .collection('chatRooms')
+        .doc(chatRoomId)
+        .collection('messages')
+        .add(message.toMap());
+
+    await updateChatPreviewForNewMessage(chatRoomId, 'Image');
+  }
+
+  // Unsends/Deletes a message
   Future<void> deleteMessage(String chatRoomId, String messageId) async {
     final user = currentUser;
     if (user == null) return;
@@ -657,84 +552,7 @@ class FirebaseService {
     await batch.commit();
   }
 
-  Future<void> sendImage(String chatRoomId, String imagePath) async {
-    final ref = _storage
-        .ref()
-        .child('chat_images/${DateTime.now().millisecondsSinceEpoch}.jpg');
-    await ref.putFile(File(imagePath));
-    final url = await ref.getDownloadURL();
-
-    final message = Message(
-      id: '',
-      senderId: currentUser!.uid,
-      text: '',
-      imageUrl: url,
-      timestamp: Timestamp.now(),
-    );
-
-    await _firestore
-        .collection('chatRooms')
-        .doc(chatRoomId)
-        .collection('messages')
-        .add(message.toMap());
-
-    await updateChatPreviewForNewMessage(chatRoomId, 'Image');
-  }
-
-  // Checks if any of the chat rooms has unread messages for the user where they are a participant
-  Stream<bool> hasUnreadMessages() {
-    User? user = currentUser;
-    if (user == null) return Stream.value(false);
-
-    return _firestore
-        .collection('chatRooms')
-        .where('participants', arrayContains: user.uid)
-        .snapshots()
-        .map((snapshot) {
-      for (var doc in snapshot.docs) {
-        Map<String, dynamic> data = doc.data();
-        Map<String, dynamic>? hasUnread =
-            data['hasUnread'] as Map<String, dynamic>?;
-        if (hasUnread?[user.uid] == true) {
-          return true;
-        }
-      }
-      return false;
-    });
-  }
-
-  Future<void> updateChatPreviewForNewMessage(
-      String chatRoomId, String lastMessage) async {
-    DocumentSnapshot chatRoomDoc =
-        await _firestore.collection('chatRooms').doc(chatRoomId).get();
-
-    if (!chatRoomDoc.exists) {
-      return;
-    }
-
-    Map<String, dynamic> data = chatRoomDoc.data() as Map<String, dynamic>;
-    List<String> participants = List<String>.from(data['participants'] ?? []);
-
-    Map<String, dynamic> updates = {
-      'lastMessage': lastMessage,
-      'lastMessageTime': FieldValue.serverTimestamp(),
-    };
-
-    for (String participantId in participants) {
-      updates['hasUnread.$participantId'] = participantId != currentUser!.uid;
-    }
-
-    await _firestore.collection('chatRooms').doc(chatRoomId).update(updates);
-  }
-
-  Future<void> markChatAsRead(String chatRoomId) async {
-    if (currentUser == null) return;
-
-    await _firestore.collection('chatRooms').doc(chatRoomId).update({
-      'hasUnread.${currentUser!.uid}': false,
-    });
-  }
-
+  // Gets the list of chat rooms user is in
   Stream<List<ChatRoom>> getChatRooms(String userId) {
     return _firestore
         .collection('chatRooms')
@@ -745,10 +563,12 @@ class FirebaseService {
             .toList());
   }
 
+  // Creates new chat room
   Future<void> createChatRoom(ChatRoom chatRoom) async {
     await _firestore.collection('chatRooms').add(chatRoom.toMap());
   }
 
+  // Gets chat previews, filtered by type (group/carpool)
   Stream<List<ChatPreview>> getChatPreviews(String userId, String type) {
     return _firestore
         .collection('chatRooms')
@@ -773,7 +593,180 @@ class FirebaseService {
             }).toList());
   }
 
-  // Create carpool method
+  // Updates chat preview when new message sent
+  Future<void> updateChatPreviewForNewMessage(
+      String chatRoomId, String lastMessage) async {
+    DocumentSnapshot chatRoomDoc =
+        await _firestore.collection('chatRooms').doc(chatRoomId).get();
+
+    if (!chatRoomDoc.exists) {
+      return;
+    }
+
+    Map<String, dynamic> data = chatRoomDoc.data() as Map<String, dynamic>;
+    List<String> participants = List<String>.from(data['participants'] ?? []);
+
+    Map<String, dynamic> updates = {
+      'lastMessage': lastMessage,
+      'lastMessageTime': FieldValue.serverTimestamp(),
+    };
+
+    for (String participantId in participants) {
+      updates['hasUnread.$participantId'] = participantId != currentUser!.uid;
+    }
+
+    await _firestore.collection('chatRooms').doc(chatRoomId).update(updates);
+  }
+
+  // Checks if any of the chat rooms has unread messages for the user, if they are a participant though
+  Stream<bool> hasUnreadMessages() {
+    User? user = currentUser;
+    if (user == null) return Stream.value(false);
+
+    return _firestore
+        .collection('chatRooms')
+        .where('participants', arrayContains: user.uid)
+        .snapshots()
+        .map((snapshot) {
+      for (var doc in snapshot.docs) {
+        Map<String, dynamic> data = doc.data();
+        Map<String, dynamic>? hasUnread =
+            data['hasUnread'] as Map<String, dynamic>?;
+        if (hasUnread?[user.uid] == true) {
+          return true;
+        }
+      }
+      return false;
+    });
+  }
+
+  // Marks the chat room as read for user provided they enter the chat room
+  Future<void> markChatAsRead(String chatRoomId) async {
+    if (currentUser == null) return;
+
+    await _firestore.collection('chatRooms').doc(chatRoomId).update({
+      'hasUnread.${currentUser!.uid}': false,
+    });
+  }
+
+  // Gets members in a chat room. Used in both group and carpool
+  Stream<List<UserModel>> getChatRoomMembers(String chatRoomId) {
+    return _chatRooms.doc(chatRoomId).snapshots().asyncMap((doc) async {
+      List<String> participants =
+          List<String>.from(doc.get('participants') ?? []);
+      List<UserModel> members = [];
+
+      for (String userId in participants) {
+        DocumentSnapshot userDoc = await _users.doc(userId).get();
+        if (userDoc.exists) {
+          members.add(UserModel.fromMap(
+            userDoc.data() as Map<String, dynamic>,
+            userDoc.id,
+          ));
+        }
+      }
+
+      return members;
+    });
+  }
+
+  // Gets details of group chat room
+  Stream<DocumentSnapshot> getGroupDetails(String chatRoomId) {
+    return _firestore
+        .collection('chatRooms')
+        .doc(chatRoomId)
+        .snapshots()
+        .handleError((error) {
+      return null;
+    });
+  }
+
+  // Gets details of carpool chat room
+  Stream<DocumentSnapshot> getCarpoolDetails(String chatRoomId) {
+    return _chatRooms.doc(chatRoomId).snapshots().handleError((error) {
+      throw Exception('Failed to load carpool details');
+    });
+  }
+
+  // Gets username by user ID
+  Future<String> getUserName(String userId) async {
+    DocumentSnapshot userDoc =
+        await _firestore.collection('users').doc(userId).get();
+    if (userDoc.exists) {
+      Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+      return userData['username'] ?? '';
+    }
+    return '';
+  }
+
+  // Sends chat notifs
+  Future<void> checkAndSendChatNotification({
+    required String chatRoomId,
+    required String message,
+    required List<String> recipients,
+    required bool isGroupChat,
+  }) async {
+    // Get recipient notification settings
+    QuerySnapshot recipientDocs = await _firestore
+        .collection('users')
+        .where(FieldPath.documentId, whereIn: recipients)
+        .get();
+
+    final batch = _firestore.batch();
+
+    for (var recipientDoc in recipientDocs.docs) {
+      Map<String, dynamic> settings =
+          recipientDoc.get('notificationSettings') ?? {};
+
+      bool shouldNotify = isGroupChat
+          ? settings['groupMessages'] ?? true
+          : settings['carpoolMessages'] ?? true;
+
+      if (shouldNotify) {
+        DocumentReference notifRef = _firestore
+            .collection('users')
+            .doc(recipientDoc.id)
+            .collection('notifications')
+            .doc();
+
+        batch.set(notifRef, {
+          'type': isGroupChat
+              ? NotificationType.GROUP_MESSAGE.toString().split('.').last
+              : NotificationType.CARPOOL_MESSAGE.toString().split('.').last,
+          'message': message,
+          'chatRoomId': chatRoomId,
+          'timestamp': FieldValue.serverTimestamp(),
+          'isRead': false,
+        });
+      }
+    }
+
+    await batch.commit();
+  }
+
+  // ***Carpool Methods***
+  // Gets list of carpools of a concert
+  Stream<List<Carpool>> getCarpools(String concertId) {
+    final userId = currentUser?.uid;
+
+    return _firestore
+        .collection('concerts')
+        .doc(concertId)
+        .collection('carpools')
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => Carpool.fromMap(doc.data(), doc.id))
+          .where((carpool) =>
+                  carpool.availableSlots > 0 || // Has slots OR
+                  carpool.driverId == userId || // Is owner OR
+                  carpool.passengers.contains(userId) // Is member
+              )
+          .toList();
+    });
+  }
+
+  // Creates new carpool
   Future<void> createCarpool({
     required String concertId,
     required int fee,
@@ -846,6 +839,7 @@ class FirebaseService {
     }
   }
 
+  // Checks if user is in any carpool
   Future<bool> isUserInAnyCarpool(String concertId) async {
     User? user = currentUser;
     if (user == null) return false;
@@ -860,6 +854,7 @@ class FirebaseService {
     return carpools.docs.isNotEmpty;
   }
 
+  // Joins an existing carpool
   Future<void> joinCarpool(String chatRoomId, String concertId) async {
     User? user = currentUser;
     if (user == null) throw Exception('Not signed in');
@@ -933,6 +928,7 @@ class FirebaseService {
     });
   }
 
+  // Leaves a carpool
   Future<void> leaveCarpool(String chatRoomId, String concertId) async {
     User? user = currentUser;
     if (user == null) throw Exception('Not signed in');
@@ -990,6 +986,109 @@ class FirebaseService {
     await batch.commit();
   }
 
+  // Gets carpool details/info
+  Stream<Map<String, dynamic>> getCarpoolInfo(
+      String chatRoomId, String concertId) {
+    return _firestore
+        .collection('concerts')
+        .doc(concertId)
+        .collection('carpools')
+        .where('chatRoomId', isEqualTo: chatRoomId)
+        .snapshots()
+        .map((snapshot) {
+      if (snapshot.docs.isEmpty) return {};
+      var doc = snapshot.docs.first;
+      var data = doc.data();
+      // Add the document ID to the data
+      data['id'] = doc.id;
+      return data;
+    });
+  }
+
+  // Used to update carpool meetup details
+  Future<void> updateCarpoolMeetup(
+    String chatRoomId,
+    String concertId,
+    String location,
+    DateTime time,
+  ) async {
+    try {
+      final carpoolQuery = await _firestore
+          .collection('concerts')
+          .doc(concertId)
+          .collection('carpools')
+          .where('chatRoomId', isEqualTo: chatRoomId)
+          .limit(1)
+          .get();
+
+      if (carpoolQuery.docs.isEmpty) {
+        throw Exception('Carpool not found');
+      }
+
+      await carpoolQuery.docs.first.reference.update({
+        'meetupLocation': location,
+        'meetupTime': Timestamp.fromDate(time),
+        'location': location, // Add this line to update main location too
+      });
+    } catch (e) {
+      throw Exception('Failed to update meetup details');
+    }
+  }
+
+  // Used to update carpool member's RSVP status
+  Future<void> updateCarpoolRsvp(
+    String chatRoomId,
+    String status,
+    String concertId,
+  ) async {
+    User? user = currentUser;
+    if (user == null) throw Exception('Not signed in');
+
+    try {
+      // Find carpool using chatRoomId
+      final carpoolQuery = await _firestore
+          .collection('concerts')
+          .doc(concertId)
+          .collection('carpools')
+          .where('chatRoomId', isEqualTo: chatRoomId)
+          .limit(1)
+          .get();
+
+      if (carpoolQuery.docs.isEmpty) throw Exception('Carpool not found');
+
+      final carpoolDoc = carpoolQuery.docs.first;
+      final batch = _firestore.batch();
+
+      // Update RSVP status
+      batch.update(carpoolDoc.reference, {
+        'rsvpStatus.${user.uid}': status,
+      });
+
+      // Get driver info for notification
+      final driverId = carpoolDoc.get('driverId');
+      if (driverId != user.uid) {
+        final userDoc = await _users.doc(user.uid).get();
+        final username = userDoc.get('username');
+
+        batch.set(
+          _users.doc(driverId).collection('notifications').doc(),
+          {
+            'type': 'CARPOOL_MESSAGE',
+            'message': '$username is "$status" in the carpool meetup',
+            'chatRoomId': chatRoomId,
+            'timestamp': FieldValue.serverTimestamp(),
+            'isRead': false,
+          },
+        );
+      }
+
+      await batch.commit();
+    } catch (e) {
+      throw Exception('Failed to update RSVP status: ${e.toString()}');
+    }
+  }
+
+  // Kicks member from carpool
   Future<void> kickFromCarpool(
       String chatRoomId, String userId, String concertId) async {
     try {
@@ -1039,45 +1138,238 @@ class FirebaseService {
     }
   }
 
-  // Group chat screen
-  Stream<DocumentSnapshot> getGroupDetails(String chatRoomId) {
-    return _firestore
-        .collection('chatRooms') // This should point to chatRooms collection
-        .doc(chatRoomId)
-        .snapshots()
-        .handleError((error) {
-      return null;
-    });
-  }
+  // Checks if user can join carpool
+  Future<bool> canJoinCarpool(String chatRoomId, String concertId) async {
+    try {
+      final carpoolQuery = await _firestore
+          .collection('concerts')
+          .doc(concertId)
+          .collection('carpools')
+          .where('chatRoomId', isEqualTo: chatRoomId)
+          .limit(1)
+          .get();
 
-  // Carpool chat screen
-  Stream<DocumentSnapshot> getCarpoolDetails(String chatRoomId) {
-    return _chatRooms.doc(chatRoomId).snapshots().handleError((error) {
-      throw Exception('Failed to load carpool details');
-    });
-  }
+      if (carpoolQuery.docs.isEmpty) return false;
 
-  Future<String> getUserName(String userId) async {
-    DocumentSnapshot userDoc =
-        await _firestore.collection('users').doc(userId).get();
-    if (userDoc.exists) {
-      Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
-      return userData['username'] ?? '';
+      final carpoolDoc = carpoolQuery.docs.first;
+      final availableSlots = carpoolDoc.get('availableSlots') ?? 0;
+      final status = carpoolDoc.get('status') ?? 'CarpoolStatus.active';
+
+      return availableSlots > 0 && status == 'CarpoolStatus.active';
+    } catch (e) {
+      return false;
     }
-    return '';
   }
 
-  Stream<bool> userAdminStream() {
-    User? user = _auth.currentUser;
-    if (user == null) return Stream.value(false);
+  // Deletes own carpool (driver)
+  Future<void> deleteOwnCarpool(String chatRoomId, String concertId) async {
+    User? user = currentUser;
+    if (user == null) throw Exception('Not signed in');
 
+    // Find carpool
+    final carpoolQuery = await _firestore
+        .collection('concerts')
+        .doc(concertId)
+        .collection('carpools')
+        .where('chatRoomId', isEqualTo: chatRoomId)
+        .limit(1)
+        .get();
+
+    if (carpoolQuery.docs.isEmpty) {
+      throw Exception('Carpool not found');
+    }
+
+    final carpoolDoc = carpoolQuery.docs.first;
+
+    // Check if user is the owner
+    if (carpoolDoc.get('driverId') != user.uid) {
+      throw Exception('Only the carpool owner can delete it');
+    }
+
+    // Delete carpool and chat room
+    final batch = _firestore.batch();
+    batch.delete(carpoolDoc.reference);
+    batch.delete(_chatRooms.doc(chatRoomId));
+
+    await batch.commit();
+  }
+
+  // Deletes any carpool (admin)
+  Future<void> deleteCarpool(
+      String concertId, String carpoolId, String chatRoomId) async {
+    if (!await isUserAdmin()) {
+      throw Exception('Unauthorized: Admin access required');
+    }
+
+    // Delete the chat room and all its messages
+    await _firestore.collection('chatRooms').doc(chatRoomId).delete();
+
+    // Delete the carpool
+    await _firestore
+        .collection('concerts')
+        .doc(concertId)
+        .collection('carpools')
+        .doc(carpoolId)
+        .delete();
+  }
+
+  // Marks carpool as complete, users will be able to rate next
+  Future<void> markCarpoolComplete(String chatRoomId) async {
+    try {
+      final carpoolQuery = await _firestore.collection('concerts').get().then(
+          (snapshot) => snapshot.docs
+              .map((doc) => doc.reference
+                  .collection('carpools')
+                  .where('chatRoomId', isEqualTo: chatRoomId)
+                  .limit(1)
+                  .get())
+              .first);
+
+      if (carpoolQuery.docs.isEmpty) {
+        throw Exception('Carpool not found');
+      }
+
+      final carpoolDoc = carpoolQuery.docs.first;
+      final batch = _firestore.batch();
+
+      // Update status
+      batch.update(carpoolDoc.reference, {
+        'status': CarpoolStatus.completed.toString(),
+        'completedAt': FieldValue.serverTimestamp(),
+        'ratedBy': [],
+      });
+
+      // Get list of passengers (excluding driver)
+      final passengers = List<String>.from(carpoolDoc.get('passengers') ?? []);
+      final driverId = carpoolDoc.get('driverId');
+
+      // Create notifications only for passengers
+      for (String userId in passengers) {
+        if (userId != driverId) {
+          // Skip if it's the driver
+          batch.set(
+            _users.doc(userId).collection('notifications').doc(),
+            {
+              'type':
+                  NotificationType.CARPOOL_MESSAGE.toString().split('.').last,
+              'message':
+                  'Carpool has been marked as complete. Please rate your experience.',
+              'chatRoomId': chatRoomId,
+              'timestamp': FieldValue.serverTimestamp(),
+              'isRead': false,
+            },
+          );
+        }
+      }
+
+      await batch.commit();
+    } catch (e) {
+      throw Exception('Failed to mark carpool as complete');
+    }
+  }
+
+  // Rating Methods, this is for submiting rating
+  Future<void> submitRating(String concertId, String chatRoomId, double rating,
+      {String? comment}) async {
+    User? user = currentUser;
+    if (user == null) throw Exception('Not signed in');
+
+    if (comment != null && comment.length > 50) {
+      throw Exception('Comment cannot exceed 50 characters');
+    }
+
+    // Find carpool doc
+    final carpoolQuery = await _firestore
+        .collection('concerts')
+        .doc(concertId)
+        .collection('carpools')
+        .where('chatRoomId', isEqualTo: chatRoomId)
+        .limit(1)
+        .get();
+
+    if (carpoolQuery.docs.isEmpty) {
+      throw Exception('Carpool not found');
+    }
+
+    final carpoolDoc = carpoolQuery.docs.first;
+    final driverId = carpoolDoc.get('driverId');
+    final ratedBy = List<String>.from(carpoolDoc.get('ratedBy') ?? []);
+    final userData = await getUserProfile();
+    final username = userData['username'];
+
+    // Check if already rated
+    if (ratedBy.contains(user.uid)) {
+      throw Exception('You have already rated this carpool');
+    }
+
+    final batch = _firestore.batch();
+
+    // Update carpool ratedBy
+    batch.update(carpoolDoc.reference, {
+      'ratedBy': FieldValue.arrayUnion([user.uid]),
+    });
+
+    // Update driver's ratings in their user document
+    final driverRef = _users.doc(driverId);
+    batch.update(driverRef, {
+      'carpoolRatings': FieldValue.increment(rating),
+      'totalCarpoolRatings': FieldValue.increment(1),
+    });
+
+    // Create notification for driver
+    batch.set(
+      _users.doc(driverId).collection('notifications').doc(),
+      {
+        'type': NotificationType.CARPOOL_MESSAGE.toString().split('.').last,
+        'message':
+            '$username rated your carpool ${rating.toStringAsFixed(1)} stars${comment != null ? '\nComment: $comment' : ''}',
+        'chatRoomId': chatRoomId,
+        'timestamp': FieldValue.serverTimestamp(),
+        'isRead': false,
+      },
+    );
+
+    await batch.commit();
+  }
+
+  // Used to get driver's rating, displayed in carpool info and carpool card
+  Stream<double> getDriverRating(String driverId) {
     return _firestore
-        .collection('users')
-        .doc(user.uid)
+        .collection('ratings')
+        .where('driverId', isEqualTo: driverId)
         .snapshots()
-        .map((snapshot) => snapshot.data()?['isAdmin'] == true);
+        .map((snapshot) {
+      if (snapshot.docs.isEmpty) return 0.0;
+      double total = 0;
+      int count = 0;
+      for (var doc in snapshot.docs) {
+        double? rating = doc.get('rating');
+        if (rating != null) {
+          total += rating;
+          count++;
+        }
+      }
+      return count > 0 ? total / count : 0.0;
+    });
   }
 
+  // ***Group Methods***
+
+  // Gets all groups in a concert
+  Stream<List<Group>> getGroups(String concertId) {
+    return _firestore
+        .collection('concerts')
+        .doc(concertId)
+        .collection('groups')
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => Group.fromMap(doc.data(), doc.id))
+          .toList();
+    });
+  }
+
+  // Creates new group (only admin can but this restriction is only shown in group list)
   Future<void> createGroup({
     required String concertId,
     required String groupName,
@@ -1106,7 +1398,7 @@ class FirebaseService {
         'type': 'group',
         'name': groupName,
         'concertName':
-            concertName, // Use the concert name we got from concert document
+            concertName, // Use the concert name from concert document
         'participants': [user.uid],
         'lastMessage': 'Group chat created',
         'lastMessageTime': FieldValue.serverTimestamp(),
@@ -1133,6 +1425,7 @@ class FirebaseService {
     }
   }
 
+  // Joins an existing group
   Future<void> joinGroup(String concertId, String groupId) async {
     User? user = currentUser;
     if (user == null) throw Exception('User not signed in');
@@ -1239,49 +1532,170 @@ class FirebaseService {
     });
   }
 
-  Future<void> createConcert({
-    // Used in add_concert_screen
-    required String imageUrl,
-    required String artistName,
-    required String concertName,
-    required List<String> description,
-    required List<String> dates,
-    required String location,
-    required String artistDetails,
-  }) async {
+  // Check if user can join group
+  Future<bool> canJoinGroup(
+      String chatRoomId, String userId, String concertId) async {
     try {
-      DocumentReference concertRef =
-          await _firestore.collection('concerts').add({
-        'imageUrl': imageUrl,
-        'artistName': artistName,
-        'concertName': concertName,
-        'description': description,
-        'dates': dates,
-        'location': location,
-        'artistDetails': artistDetails,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      // First get the group document using chatRoomId
+      QuerySnapshot groupQuery = await _firestore
+          .collection('concerts')
+          .doc(concertId)
+          .collection('groups')
+          .where('chatRoomId', isEqualTo: chatRoomId)
+          .get();
 
-      // Create subcollections
-      await concertRef.collection('groups').add({});
-      await concertRef.collection('carpools').add({});
+      if (groupQuery.docs.isEmpty) {
+        return false;
+      }
 
-      // Delete the empty documents after creating the collections
-      await concertRef.collection('groups').get().then((snapshot) {
-        for (DocumentSnapshot doc in snapshot.docs) {
-          doc.reference.delete();
-        }
-      });
-      await concertRef.collection('carpools').get().then((snapshot) {
-        for (DocumentSnapshot doc in snapshot.docs) {
-          doc.reference.delete();
-        }
-      });
+      DocumentSnapshot groupDoc = groupQuery.docs.first;
+      final data = groupDoc.data() as Map<String, dynamic>;
+
+      // Always allow group creator to join
+      if (data['createdBy'] == userId) {
+        return true;
+      }
+
+      // Check for kicked or left members
+      final kickedMembers = List<String>.from(data['kickedMembers'] ?? []);
+      final leftMembers = List<String>.from(data['leftMembers'] ?? []);
+
+      return !kickedMembers.contains(userId) && !leftMembers.contains(userId);
     } catch (e) {
-      throw Exception('Failed to create concert: $e');
+      return false;
     }
   }
 
+  // Leaves a group
+  Future<void> leaveGroup(String chatRoomId, String concertId) async {
+    User? user = currentUser;
+    if (user == null) throw Exception('Not signed in');
+
+    final batch = _firestore.batch();
+
+    try {
+      // First get the group document using chatRoomId
+      QuerySnapshot groupQuery = await _firestore
+          .collection('concerts')
+          .doc(concertId)
+          .collection('groups')
+          .where('chatRoomId', isEqualTo: chatRoomId)
+          .get();
+
+      if (groupQuery.docs.isEmpty) {
+        throw Exception('Group not found');
+      }
+
+      DocumentSnapshot groupDoc = groupQuery.docs.first;
+
+      // Update group document
+      batch.update(groupDoc.reference, {
+        'membersCount': FieldValue.increment(-1),
+        'members': FieldValue.arrayRemove([user.uid]),
+        'leftMembers': FieldValue.arrayUnion([user.uid]), // Track who left
+      });
+
+      // Remove from chat room participants
+      final chatRoomRef = _firestore.collection('chatRooms').doc(chatRoomId);
+      batch.update(chatRoomRef, {
+        'participants': FieldValue.arrayRemove([user.uid]),
+      });
+
+      await batch.commit();
+    } catch (e) {
+      throw Exception('Failed to leave group: ${e.toString()}');
+    }
+  }
+
+  // Kicks member from group
+  Future<void> kickFromGroup(
+      String chatRoomId, String userId, String concertId) async {
+    final batch = _firestore.batch();
+
+    try {
+      // First find the group document using chatRoomId
+      QuerySnapshot groupQuery = await _firestore
+          .collection('concerts')
+          .doc(concertId)
+          .collection('groups')
+          .where('chatRoomId', isEqualTo: chatRoomId)
+          .get();
+
+      if (groupQuery.docs.isEmpty) {
+        throw Exception('Group not found');
+      }
+
+      DocumentSnapshot groupDoc = groupQuery.docs.first;
+
+      // Update members count and list in group
+      batch.update(groupDoc.reference, {
+        'membersCount': FieldValue.increment(-1),
+        'members': FieldValue.arrayRemove([userId]),
+        'kickedMembers':
+            FieldValue.arrayUnion([userId]), // Keep track of kicked members
+      });
+
+      // Remove from chat room participants
+      final chatRoomRef = _firestore.collection('chatRooms').doc(chatRoomId);
+      batch.update(chatRoomRef, {
+        'participants': FieldValue.arrayRemove([userId]),
+      });
+
+      // Add notification for kicked user
+      final notifRef = _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('notifications')
+          .doc();
+
+      batch.set(notifRef, {
+        'type': 'GROUP_MESSAGE',
+        'message': 'You have been removed from the group',
+        'timestamp': FieldValue.serverTimestamp(),
+        'isRead': false,
+      });
+
+      await batch.commit();
+    } catch (e) {
+      throw Exception('Failed to kick member: ${e.toString()}');
+    }
+  }
+
+  // Deletes group (admin only)
+  Future<void> deleteGroup(
+      String concertId, String groupId, String chatRoomId) async {
+    if (!await isUserAdmin()) {
+      throw Exception('Unauthorized: Admin access required');
+    }
+
+    // Delete the chat room and all its messages
+    await _firestore.collection('chatRooms').doc(chatRoomId).delete();
+
+    // Delete the group
+    await _firestore
+        .collection('concerts')
+        .doc(concertId)
+        .collection('groups')
+        .doc(groupId)
+        .delete();
+  }
+
+  // ***Ticket and Verification Methods***
+  // Gets list of tickets of a concert
+  Stream<List<Ticket>> getTickets(String concertId) {
+    return _firestore
+        .collection('concerts')
+        .doc(concertId)
+        .collection('tickets')
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => Ticket.fromMap(doc.data(), doc.id))
+          .toList();
+    });
+  }
+
+  // Creates a new ticket link
   Future<void> createTicket({
     required String concertId,
     required String ticketName,
@@ -1337,27 +1751,7 @@ class FirebaseService {
     }
   }
 
-  // Updating of profile pictures
-  Future<void> updateProfilePicture(String imagePath) async {
-    User? user = currentUser;
-    if (user == null) throw Exception('User not found');
-
-    try {
-      // Upload image to Firebase Storage
-      final ref = _storage.ref().child('profile_pictures/${user.uid}.jpg');
-      await ref.putFile(File(imagePath));
-      final imageUrl = await ref.getDownloadURL();
-
-      // Update user document with new image URL
-      await _firestore.collection('users').doc(user.uid).update({
-        'profilePicture': imageUrl,
-      });
-    } catch (e) {
-      throw Exception('Failed to update profile picture: $e');
-    }
-  }
-
-  // Delete ricket
+  // Deletes ticket (admin only)
   Future<void> deleteTicket(String concertId, String ticketId) async {
     if (!await isUserAdmin()) {
       throw Exception('Unauthorized: Admin access required');
@@ -1410,179 +1804,196 @@ class FirebaseService {
     await batch.commit();
   }
 
-  Future<void> deleteGroup(
-      String concertId, String groupId, String chatRoomId) async {
-    if (!await isUserAdmin()) {
-      throw Exception('Unauthorized: Admin access required');
-    }
-
-    // Delete the chat room and all its messages
-    await _firestore.collection('chatRooms').doc(chatRoomId).delete();
-
-    // Delete the group
-    await _firestore
-        .collection('concerts')
-        .doc(concertId)
-        .collection('groups')
-        .doc(groupId)
-        .delete();
-  }
-
-  Future<void> deleteCarpool(
-      String concertId, String carpoolId, String chatRoomId) async {
-    if (!await isUserAdmin()) {
-      throw Exception('Unauthorized: Admin access required');
-    }
-
-    // Delete the chat room and all its messages
-    await _firestore.collection('chatRooms').doc(chatRoomId).delete();
-
-    // Delete the carpool
-    await _firestore
-        .collection('concerts')
-        .doc(concertId)
-        .collection('carpools')
-        .doc(carpoolId)
-        .delete();
-  }
-
-// Delete entire concert and its data
-  Future<void> deleteConcertAndData(String concertId) async {
-    if (!await isUserSuperAdmin()) {
-      throw Exception('Unauthorized: Super Admin access required');
-    }
-
-    // Get all chat rooms associated with this concert's groups and carpools
-    final groupsSnapshot = await _firestore
-        .collection('concerts')
-        .doc(concertId)
-        .collection('groups')
-        .get();
-
-    final carpoolsSnapshot = await _firestore
-        .collection('concerts')
-        .doc(concertId)
-        .collection('carpools')
-        .get();
-
-    // Delete all chat rooms
-    for (var doc in groupsSnapshot.docs) {
-      final chatRoomId = doc.data()['chatRoomId'] as String?;
-      if (chatRoomId?.isNotEmpty ?? false) {
-        await _firestore.collection('chatRooms').doc(chatRoomId).delete();
-      }
-    }
-
-    for (var doc in carpoolsSnapshot.docs) {
-      final chatRoomId = doc.data()['chatRoomId'] as String?;
-      if (chatRoomId?.isNotEmpty ?? false) {
-        await _firestore.collection('chatRooms').doc(chatRoomId).delete();
-      }
-    }
-
-    // Delete all subcollections
-    await _deleteCollection(
-        _firestore.collection('concerts').doc(concertId).collection('groups'));
-    await _deleteCollection(_firestore
-        .collection('concerts')
-        .doc(concertId)
-        .collection('carpools'));
-    await _deleteCollection(
-        _firestore.collection('concerts').doc(concertId).collection('tickets'));
-
-    // Finally delete the concert document
-    await _firestore.collection('concerts').doc(concertId).delete();
-  }
-
-// Helper method to delete a collection
-  Future<void> _deleteCollection(CollectionReference collection) async {
-    final snapshot = await collection.get();
-    for (var doc in snapshot.docs) {
-      await doc.reference.delete();
-    }
-  }
-
-  Future<void> deleteOwnCarpool(String chatRoomId, String concertId) async {
+  // Submits ticket for verification
+  Future<void> submitTicketVerification(String concertId, File image) async {
     User? user = currentUser;
-    if (user == null) throw Exception('Not signed in');
-
-    // Find carpool
-    final carpoolQuery = await _firestore
-        .collection('concerts')
-        .doc(concertId)
-        .collection('carpools')
-        .where('chatRoomId', isEqualTo: chatRoomId)
-        .limit(1)
-        .get();
-
-    if (carpoolQuery.docs.isEmpty) {
-      throw Exception('Carpool not found');
-    }
-
-    final carpoolDoc = carpoolQuery.docs.first;
-
-    // Check if user is the owner
-    if (carpoolDoc.get('driverId') != user.uid) {
-      throw Exception('Only the carpool owner can delete it');
-    }
-
-    // Delete carpool and chat room
-    final batch = _firestore.batch();
-    batch.delete(carpoolDoc.reference);
-    batch.delete(_chatRooms.doc(chatRoomId));
-
-    await batch.commit();
-  }
-
-  Future<void> updateConcertDetails(
-    String concertId, {
-    // Made concertId a required parameter
-    String? imageUrl,
-    String? artistName,
-    String? concertName,
-    List<String>? description,
-    String? artistDetails,
-    DateTime? mainDate,
-    List<String>? dates,
-    String? location,
-  }) async {
-    if (!await isUserAdmin()) {
-      throw Exception('Unauthorized: Admin access required');
-    }
+    if (user == null) throw Exception('User not signed in');
 
     try {
-      Map<String, dynamic> updates = {};
-      if (imageUrl != null) updates['imageUrl'] = imageUrl;
-      if (artistName != null) updates['artistName'] = artistName;
-      if (concertName != null) updates['concertName'] = concertName;
-      if (description != null) updates['description'] = description;
-      if (artistDetails != null) updates['artistDetails'] = artistDetails;
-      if (mainDate != null) updates['date'] = Timestamp.fromDate(mainDate);
-      if (dates != null) updates['dates'] = dates;
-      if (location != null) updates['location'] = location;
+      // First, delete any existing pending verifications for this user and concert
+      QuerySnapshot existingVerifications = await _firestore
+          .collection('ticket_verifications')
+          .where('userId', isEqualTo: user.uid)
+          .where('concertId', isEqualTo: concertId)
+          .where('status', isEqualTo: 'pending')
+          .get();
 
-      if (updates.isEmpty) return;
-
-      await _concerts.doc(concertId).update(updates);
-
-      // Get all subscribed users and send notifications
-      final recipients =
-          await _getUpdatesSubscribers(type: NotificationType.CONCERT_UPDATE);
-
-      if (recipients.isNotEmpty) {
-        await sendBatchNotifications(
-          recipients: recipients,
-          type: NotificationType.CONCERT_UPDATE,
-          message: 'Concert details have been updated',
-          concertId: concertId,
-        );
+      // Delete found documents in a batch
+      final batch = _firestore.batch();
+      for (var doc in existingVerifications.docs) {
+        batch.delete(doc.reference);
       }
+      await batch.commit();
+
+      // Upload new image to Firebase Storage
+      final ref = _storage.ref().child(
+          'ticket_verifications/${DateTime.now().millisecondsSinceEpoch}.jpg');
+      await ref.putFile(image);
+      final imageUrl = await ref.getDownloadURL();
+
+      // Get user data
+      DocumentSnapshot userDoc = await _users.doc(user.uid).get();
+      String userName =
+          '${userDoc.get('firstName')} ${userDoc.get('lastName')}';
+
+      // Create new verification document
+      await _firestore.collection('ticket_verifications').add({
+        'userId': user.uid,
+        'concertId': concertId,
+        'imageUrl': imageUrl,
+        'isApproved': false,
+        'status': 'pending',
+        'submittedAt': FieldValue.serverTimestamp(),
+        'userName': userName,
+      });
     } catch (e) {
-      throw _handleFirebaseError(e);
+      throw Exception('Failed to submit ticket verification: $e');
     }
   }
 
-  // Notifications methods, updated to include sound and vibration preferences when creating notifications
+  // Gets list of pending ticket verifications shown in ticket approvals page
+  Stream<List<TicketVerification>> getPendingVerifications() {
+    return _firestore
+        .collection('ticket_verifications')
+        .where('status', isEqualTo: 'pending')
+        .orderBy('submittedAt', descending: true) // Get newest first
+        .snapshots()
+        .map((snapshot) {
+      final verifications = snapshot.docs
+          .map((doc) => TicketVerification.fromMap(doc.data(), doc.id))
+          .toList();
+
+      // Keep only the latest submission per user/concert combination
+      final Map<String, TicketVerification> latestVerifications = {};
+      for (var verification in verifications) {
+        final key = '${verification.userId}_${verification.concertId}';
+        if (!latestVerifications.containsKey(key)) {
+          latestVerifications[key] = verification;
+        }
+      }
+
+      return latestVerifications.values.toList();
+    });
+  }
+
+  // Checks ticket verification status
+  Stream<bool> checkVerificationStatus(String concertId) {
+    User? user = currentUser;
+    if (user == null) return Stream.value(false);
+
+    // For admins and super admins
+    return _firestore
+        .collection('users')
+        .doc(user.uid)
+        .snapshots()
+        .asyncMap((userDoc) async {
+      // Check admin status
+      final isAdmin = userDoc.data()?['isAdmin'] ?? false;
+      final isSuperAdmin = userDoc.data()?['isSuperAdmin'] ?? false;
+      if (isAdmin || isSuperAdmin) return true;
+
+      // For regular users, check verification status
+      QuerySnapshot verifications = await _firestore
+          .collection('ticket_verifications')
+          .where('userId', isEqualTo: user.uid)
+          .where('concertId', isEqualTo: concertId)
+          .where('isApproved', isEqualTo: true)
+          .get();
+
+      return verifications.docs.isNotEmpty;
+    });
+  }
+
+  // Approves ticket verification (admin only)
+  Future<void> approveVerification(String verificationId) async {
+    if (!await isUserAdmin()) throw Exception('Unauthorized action');
+
+    User? admin = currentUser;
+    if (admin == null) throw Exception('Admin not signed in');
+
+    // Get the verification document
+    DocumentSnapshot verificationDoc = await _firestore
+        .collection('ticket_verifications')
+        .doc(verificationId)
+        .get();
+
+    final data = verificationDoc.data() as Map<String, dynamic>;
+    final userId = data['userId'];
+    final concertId = data['concertId'];
+
+    // Get concert details for the message
+    DocumentSnapshot concertDoc =
+        await _firestore.collection('concerts').doc(concertId).get();
+    final concertData = concertDoc.data() as Map<String, dynamic>;
+    final artistName = concertData['artistName'];
+
+    // Update verification status
+    await _firestore
+        .collection('ticket_verifications')
+        .doc(verificationId)
+        .update({
+      'isApproved': true,
+      'status': 'approved',
+      'verifiedAt': FieldValue.serverTimestamp(),
+      'verifiedBy': admin.uid,
+    });
+
+    // Create notification for user
+    await createNotification(
+      type: NotificationType.USER_STATUS,
+      message:
+          'Welcome to the $artistName concert! Your ticket has been verified successfully.',
+      concertId: concertId,
+      recipients: [userId],
+    );
+  }
+
+  // Rejects a ticket verification (admin only)
+  Future<void> rejectVerification(String verificationId, String reason) async {
+    if (!await isUserAdmin()) throw Exception('Unauthorized action');
+
+    User? admin = currentUser;
+    if (admin == null) throw Exception('Admin not signed in');
+
+    // Get the verification document
+    DocumentSnapshot verificationDoc = await _firestore
+        .collection('ticket_verifications')
+        .doc(verificationId)
+        .get();
+
+    final data = verificationDoc.data() as Map<String, dynamic>;
+    final userId = data['userId'];
+    final concertId = data['concertId'];
+
+    // Get concert details for the message
+    DocumentSnapshot concertDoc =
+        await _firestore.collection('concerts').doc(concertId).get();
+    final concertData = concertDoc.data() as Map<String, dynamic>;
+    final artistName = concertData['artistName'];
+
+    await _firestore
+        .collection('ticket_verifications')
+        .doc(verificationId)
+        .update({
+      'isApproved': false,
+      'status': 'rejected',
+      'verifiedAt': FieldValue.serverTimestamp(),
+      'verifiedBy': admin.uid,
+      'rejectionReason': reason,
+    });
+
+    // Create notification with specific concert name
+    await createNotification(
+      type: NotificationType.USER_STATUS,
+      message:
+          'Unfortunately, your ticket verification for $artistName concert was rejected. Reason: $reason',
+      concertId: concertId,
+      recipients: [userId],
+    );
+  }
+
+  // ***Notification Methods***
+  // Creates notif for specific users
   Future<void> createNotification({
     required NotificationType type,
     required String message,
@@ -1617,6 +2028,40 @@ class FirebaseService {
     await batch.commit();
   }
 
+  // Basically sends notifs to multiple users in batch
+  Future<void> sendBatchNotifications({
+    required List<String> recipients,
+    required NotificationType type,
+    required String message,
+    String? concertId,
+    String? chatRoomId,
+    String? ticketId,
+    String? senderId,
+  }) async {
+    final batch = _firestore.batch();
+
+    for (String userId in recipients) {
+      if (!await shouldSendNotification(userId, type)) continue;
+
+      DocumentReference notifRef =
+          _users.doc(userId).collection('notifications').doc();
+
+      batch.set(notifRef, {
+        'type': type.toString().split('.').last,
+        'message': message,
+        'concertId': concertId,
+        'chatRoomId': chatRoomId,
+        'ticketId': ticketId,
+        'senderId': senderId,
+        'timestamp': FieldValue.serverTimestamp(),
+        'isRead': false,
+      });
+    }
+
+    await batch.commit();
+  }
+
+  // Gets user's notif stream
   Stream<List<NotificationModel>> getUserNotifications() {
     User? user = currentUser;
     if (user == null) return Stream.value([]);
@@ -1632,6 +2077,46 @@ class FirebaseService {
             .toList());
   }
 
+  // Gets user's notification settings
+  Stream<Map<String, dynamic>> getUserNotificationSettings() {
+    User? user = currentUser;
+    if (user == null) return Stream.value({});
+
+    return _firestore.collection('users').doc(user.uid).snapshots().map((doc) {
+      if (!doc.exists) return _getDefaultSettings();
+      Map<String, dynamic>? data = doc.data();
+      return data?['notificationSettings'] ?? _getDefaultSettings();
+    });
+  }
+
+  // Initializes default settings for new users
+  Future<void> initializeNotificationSettings() async {
+    User? user = currentUser;
+    if (user == null) return;
+
+    DocumentSnapshot userDoc =
+        await _firestore.collection('users').doc(user.uid).get();
+
+    if (!userDoc.exists ||
+        !(userDoc.data() as Map<String, dynamic>)
+            .containsKey('notificationSettings')) {
+      await _firestore.collection('users').doc(user.uid).set({
+        'notificationSettings': _getDefaultSettings(),
+      }, SetOptions(merge: true));
+    }
+  }
+
+// Updates a specific notif setting
+  Future<void> updateNotificationSetting(String setting, bool value) async {
+    User? user = currentUser;
+    if (user == null) return;
+
+    await _firestore.collection('users').doc(user.uid).update({
+      'notificationSettings.$setting': value,
+    });
+  }
+
+  // Marks a single notif as read
   Future<void> markNotificationAsRead(String notificationId) async {
     User? user = currentUser;
     if (user == null) return;
@@ -1644,75 +2129,7 @@ class FirebaseService {
         .update({'isRead': true});
   }
 
-  // User notification settings
-  Stream<Map<String, dynamic>> getUserNotificationSettings() {
-    User? user = currentUser;
-    if (user == null) return Stream.value({});
-
-    return _firestore.collection('users').doc(user.uid).snapshots().map((doc) {
-      if (!doc.exists) return _getDefaultSettings();
-      Map<String, dynamic>? data = doc.data();
-      return data?['notificationSettings'] ?? _getDefaultSettings();
-    });
-  }
-
-// Helper method for default settings
-  Map<String, dynamic> _getDefaultSettings() {
-    return {
-      'ticketUpdates': true,
-      'groupMessages': true,
-      'carpoolMessages': true,
-      'concertUpdates': true,
-      'soundEnabled': true,
-      'vibrationEnabled': true,
-    };
-  }
-
-  // Add this method for chat notifications
-  Future<void> checkAndSendChatNotification({
-    required String chatRoomId,
-    required String message,
-    required List<String> recipients,
-    required bool isGroupChat,
-  }) async {
-    // Get recipient notification settings
-    QuerySnapshot recipientDocs = await _firestore
-        .collection('users')
-        .where(FieldPath.documentId, whereIn: recipients)
-        .get();
-
-    final batch = _firestore.batch();
-
-    for (var recipientDoc in recipientDocs.docs) {
-      Map<String, dynamic> settings =
-          recipientDoc.get('notificationSettings') ?? {};
-
-      bool shouldNotify = isGroupChat
-          ? settings['groupMessages'] ?? true
-          : settings['carpoolMessages'] ?? true;
-
-      if (shouldNotify) {
-        DocumentReference notifRef = _firestore
-            .collection('users')
-            .doc(recipientDoc.id)
-            .collection('notifications')
-            .doc();
-
-        batch.set(notifRef, {
-          'type': isGroupChat
-              ? NotificationType.GROUP_MESSAGE.toString().split('.').last
-              : NotificationType.CARPOOL_MESSAGE.toString().split('.').last,
-          'message': message,
-          'chatRoomId': chatRoomId,
-          'timestamp': FieldValue.serverTimestamp(),
-          'isRead': false,
-        });
-      }
-    }
-
-    await batch.commit();
-  }
-
+  // Marks all user's notifications as read
   Future<void> markAllNotificationsAsRead() async {
     User? user = currentUser;
     if (user == null) return;
@@ -1737,59 +2154,7 @@ class FirebaseService {
     await batch.commit();
   }
 
-  // Initialize settings for new users
-  Future<void> initializeNotificationSettings() async {
-    User? user = currentUser;
-    if (user == null) return;
-
-    DocumentSnapshot userDoc =
-        await _firestore.collection('users').doc(user.uid).get();
-
-    if (!userDoc.exists ||
-        !(userDoc.data() as Map<String, dynamic>)
-            .containsKey('notificationSettings')) {
-      await _firestore.collection('users').doc(user.uid).set({
-        'notificationSettings': _getDefaultSettings(),
-      }, SetOptions(merge: true));
-    }
-  }
-
-// Update a specific notification setting
-  Future<void> updateNotificationSetting(String setting, bool value) async {
-    User? user = currentUser;
-    if (user == null) return;
-
-    await _firestore.collection('users').doc(user.uid).update({
-      'notificationSettings.$setting': value,
-    });
-  }
-
-// Helper method to check if notification should be sent based on settings
-  Future<bool> shouldSendNotification(
-      String userId, NotificationType type) async {
-    DocumentSnapshot userDoc =
-        await _firestore.collection('users').doc(userId).get();
-
-    if (!userDoc.exists) return false;
-
-    Map<String, dynamic>? settings =
-        (userDoc.data() as Map<String, dynamic>)['notificationSettings'];
-    if (settings == null) return true;
-
-    switch (type) {
-      case NotificationType.CONCERT_UPDATE:
-        return settings['concertUpdates'] ?? true;
-      case NotificationType.GROUP_MESSAGE:
-        return settings['groupMessages'] ?? true;
-      case NotificationType.CARPOOL_MESSAGE:
-        return settings['carpoolMessages'] ?? true;
-      case NotificationType.TICKET_UPDATE:
-        return settings['ticketUpdates'] ?? true;
-      case NotificationType.USER_STATUS:
-        return true;
-    }
-  }
-
+  // Deletes a single notif
   Future<void> deleteNotification(String notificationId) async {
     User? user = currentUser;
     if (user == null) return;
@@ -1806,6 +2171,7 @@ class FirebaseService {
     }
   }
 
+  // Clears all notifs
   Future<void> clearAllNotifications() async {
     User? user = currentUser;
     if (user == null) return;
@@ -1833,6 +2199,143 @@ class FirebaseService {
     }
   }
 
+  // Notification Helper Methods
+  // Method for getting users subscribed to updates
+  Future<List<String>> _getUpdatesSubscribers({NotificationType? type}) async {
+    String settingKey;
+    switch (type) {
+      case NotificationType.CONCERT_UPDATE:
+        settingKey = 'concertUpdates';
+        break;
+      case NotificationType.TICKET_UPDATE:
+        settingKey = 'ticketUpdates';
+        break;
+      case NotificationType.GROUP_MESSAGE:
+        settingKey = 'groupMessages';
+        break;
+      case NotificationType.CARPOOL_MESSAGE:
+        settingKey = 'carpoolMessages';
+        break;
+      default:
+        settingKey = 'concertUpdates';
+    }
+
+    QuerySnapshot snapshot = await _users
+        .where('notificationSettings.$settingKey', isEqualTo: true)
+        .get();
+
+    return snapshot.docs.map((doc) => doc.id).toList();
+  }
+
+  // Helper method to check if notification should be sent based on settings
+  Future<bool> shouldSendNotification(
+      String userId, NotificationType type) async {
+    DocumentSnapshot userDoc =
+        await _firestore.collection('users').doc(userId).get();
+
+    if (!userDoc.exists) return false;
+
+    Map<String, dynamic>? settings =
+        (userDoc.data() as Map<String, dynamic>)['notificationSettings'];
+    if (settings == null) return true;
+
+    switch (type) {
+      case NotificationType.CONCERT_UPDATE:
+        return settings['concertUpdates'] ?? true;
+      case NotificationType.GROUP_MESSAGE:
+        return settings['groupMessages'] ?? true;
+      case NotificationType.CARPOOL_MESSAGE:
+        return settings['carpoolMessages'] ?? true;
+      case NotificationType.TICKET_UPDATE:
+        return settings['ticketUpdates'] ?? true;
+      case NotificationType.USER_STATUS:
+        return true;
+    }
+  }
+
+  // Helper method for default settings, all enabled by default, can be changed by user
+  Map<String, dynamic> _getDefaultSettings() {
+    return {
+      'ticketUpdates': true,
+      'groupMessages': true,
+      'carpoolMessages': true,
+      'concertUpdates': true,
+      'soundEnabled': true,
+      'vibrationEnabled': true,
+    };
+  }
+
+  // Navigation handler for notif clicks, as in going to different pages depending on notif
+  void handleNotificationNavigation(
+      BuildContext context, NotificationModel notification) async {
+    bool isAdmin = await isUserAdmin();
+
+    switch (notification.type) {
+      case NotificationType.GROUP_MESSAGE:
+      case NotificationType.CARPOOL_MESSAGE:
+        Navigator.push(
+          // Changed to push instead of pushAndRemoveUntil
+          context,
+          MaterialPageRoute(
+            builder: (context) => const MessagesPage(),
+          ),
+        );
+        break;
+
+      case NotificationType.CONCERT_UPDATE:
+        if (notification.concertId != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ConcertDetailsPage(
+                concertId: notification.concertId!,
+                isAdmin: isAdmin, // Pass isAdmin here
+              ),
+            ),
+          );
+        }
+        break;
+
+      case NotificationType.TICKET_UPDATE:
+        if (notification.concertId != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TicketMarketPage(
+                concertId: notification.concertId!,
+              ),
+            ),
+          );
+        }
+        break;
+
+      case NotificationType.USER_STATUS:
+        Navigator.pop(context);
+        break;
+    }
+  }
+
+  // ***USER MANAGEMENT METHODS***
+  // **Basic User Methods**
+  // Fetch user data(for concert list and chat atm)
+  Future<Map<String, dynamic>> getUserData(String uid) async {
+    DocumentSnapshot userDoc =
+        await _firestore.collection('users').doc(uid).get();
+    return userDoc.data() as Map<String, dynamic>;
+  }
+
+  // In Profile page
+  Future<Map<String, dynamic>> getUserProfile() async {
+    User? user = _auth.currentUser;
+    if (user != null) {
+      DocumentSnapshot doc =
+          await _firestore.collection('users').doc(user.uid).get();
+      return doc.data() as Map<String, dynamic>;
+    }
+    throw Exception('User not found');
+  }
+
+  // Gets all users and shown in Users Page
   Stream<List<UserModel>> getAllUsers() {
     return _firestore.collection('users').snapshots().map((snapshot) => snapshot
         .docs
@@ -1840,6 +2343,110 @@ class FirebaseService {
         .toList());
   }
 
+  // **Profile Management**
+  // Updates user profile info
+  Future<void> updateUserProfile({
+    String? firstName,
+    String? lastName,
+    String? username,
+    String? email,
+    String? newPassword,
+    required String currentPassword,
+  }) async {
+    User? user = _auth.currentUser;
+    if (user == null) throw Exception('User not found');
+
+    // Re-authenticate user
+    AuthCredential credential = EmailAuthProvider.credential(
+      email: user.email!,
+      password: currentPassword,
+    );
+    await user.reauthenticateWithCredential(credential);
+
+    // Update Firestore document
+    Map<String, dynamic> updates = {};
+    if (firstName != null) updates['firstName'] = firstName;
+    if (lastName != null) updates['lastName'] = lastName;
+
+    // Only check username availability if username is being updated
+    if (username != null) {
+      // Check if the new username is different from current username
+      DocumentSnapshot doc =
+          await _firestore.collection('users').doc(user.uid).get();
+      String currentUsername = doc.get('username') ?? '';
+
+      if (username != currentUsername) {
+        bool isAvailable = await isUsernameAvailable(username);
+        if (!isAvailable) throw Exception('Username is already taken');
+
+        Timestamp? lastUsernameChange =
+            doc.get('lastUsernameChange') as Timestamp?;
+        if (lastUsernameChange != null) {
+          Duration difference =
+              Timestamp.now().toDate().difference(lastUsernameChange.toDate());
+          if (difference.inDays < 30) {
+            throw Exception(
+                'You can only change your username once every 30 days');
+          }
+        }
+
+        updates['username'] = username;
+        updates['lastUsernameChange'] = Timestamp.now();
+      }
+    }
+
+    if (updates.isNotEmpty) {
+      await _firestore.collection('users').doc(user.uid).update(updates);
+    }
+
+    // Update email if changed
+    if (email != null && email != user.email) {
+      try {
+        await user.verifyBeforeUpdateEmail(email);
+      } catch (e) {
+        throw Exception('Failed to update email: ${e.toString()}');
+      }
+    }
+
+    // Update password if provided
+    if (newPassword != null) {
+      await user.updatePassword(newPassword);
+    }
+  }
+
+  // Updating of profile pictures
+  Future<void> updateProfilePicture(String imagePath) async {
+    User? user = currentUser;
+    if (user == null) throw Exception('User not found');
+
+    try {
+      // Upload image to Firebase Storage
+      final ref = _storage.ref().child('profile_pictures/${user.uid}.jpg');
+      await ref.putFile(File(imagePath));
+      final imageUrl = await ref.getDownloadURL();
+
+      // Update user document with new image URL
+      await _firestore.collection('users').doc(user.uid).update({
+        'profilePicture': imageUrl,
+      });
+    } catch (e) {
+      throw Exception('Failed to update profile picture: $e');
+    }
+  }
+
+  // Check if username is available, also limits length from 3 to 20
+  Future<bool> isUsernameAvailable(String username) async {
+    if (username.length < 3 || username.length > 20) {
+      return false;
+    }
+    final querySnapshot = await _firestore
+        .collection('users')
+        .where('username', isEqualTo: username)
+        .get();
+    return querySnapshot.docs.isEmpty;
+  }
+
+  // **Admin Role Methods**
   // Promote to admin
   Future<void> promoteUser(String userId) async {
     // Only super admins can promote users to admin
@@ -1909,6 +2516,7 @@ class FirebaseService {
     }
   }
 
+  // **Ban Management**
   Future<void> banUser(
     String userId, {
     required String reason,
@@ -1987,6 +2595,7 @@ class FirebaseService {
     }
   }
 
+  // Method to unban user
   Future<void> unbanUser(String userId) async {
     // Check if the current user is an admin
     if (!await isUserAdmin()) {
@@ -2034,319 +2643,70 @@ class FirebaseService {
     }
   }
 
-  Stream<Map<String, dynamic>> getCarpoolInfo(
-      String chatRoomId, String concertId) {
+  // Check ban status of user
+  Future<void> enforceUserStatus() async {
+    User? user = currentUser;
+    if (user == null) return;
+
+    DocumentSnapshot userDoc =
+        await _firestore.collection('users').doc(user.uid).get();
+
+    if (!userDoc.exists) return;
+
+    final userData = userDoc.data() as Map<String, dynamic>;
+    final isBanned = userData['isBanned'] ?? false;
+    final currentBanEnd = userData['currentBanEnd'] as Timestamp?;
+
+    if (isBanned) {
+      // Check if it's a temporary ban that has expired
+      if (currentBanEnd != null &&
+          currentBanEnd.toDate().isBefore(DateTime.now())) {
+        // Ban has expired, automatically unban the user
+        await unbanUser(user.uid);
+      } else {
+        // User is still banned (either permanent or temporary ban still active)
+        await signOut();
+        // Error message for banned user
+        final banMessage = currentBanEnd != null
+            ? 'Account suspended until ${currentBanEnd.toDate().toLocal()}'
+            : 'Account permanently suspended';
+        throw Exception(banMessage);
+      }
+    }
+  }
+
+  // Checks if user is banned
+  Stream<bool> isUserBanned() {
+    User? user = currentUser;
+    if (user == null) return Stream.value(false);
+
     return _firestore
+        .collection('users')
+        .doc(user.uid)
+        .snapshots()
+        .map((doc) => doc.data()?['isBanned'] ?? false);
+  }
+
+  Future<void> updateConcert(String concertId, Concert concert) async {
+    await _firestore
+        .collection('concerts')
+        .doc(concertId)
+        .update(concert.toMap());
+  }
+
+  Future<void> addCarpool(String concertId, Carpool carpool) async {
+    await _firestore
         .collection('concerts')
         .doc(concertId)
         .collection('carpools')
-        .where('chatRoomId', isEqualTo: chatRoomId)
-        .snapshots()
-        .map((snapshot) {
-      if (snapshot.docs.isEmpty) return {};
-      var doc = snapshot.docs.first;
-      var data = doc.data();
-      // Add the document ID to the data
-      data['id'] = doc.id;
-      return data;
-    });
+        .add(carpool.toMap());
   }
 
-  Future<void> updateCarpoolMeetup(
-    String chatRoomId,
-    String concertId,
-    String location,
-    DateTime time,
-  ) async {
-    try {
-      final carpoolQuery = await _firestore
-          .collection('concerts')
-          .doc(concertId)
-          .collection('carpools')
-          .where('chatRoomId', isEqualTo: chatRoomId)
-          .limit(1)
-          .get();
+  // **Email Verification**
 
-      if (carpoolQuery.docs.isEmpty) {
-        throw Exception('Carpool not found');
-      }
-
-      await carpoolQuery.docs.first.reference.update({
-        'meetupLocation': location,
-        'meetupTime': Timestamp.fromDate(time),
-        'location': location, // Add this line to update main location too
-      });
-    } catch (e) {
-      throw Exception('Failed to update meetup details');
-    }
-  }
-
-  Future<void> updateCarpoolRsvp(
-    String chatRoomId,
-    String status,
-    String concertId,
-  ) async {
-    User? user = currentUser;
-    if (user == null) throw Exception('Not signed in');
-
-    try {
-      // Find carpool using chatRoomId
-      final carpoolQuery = await _firestore
-          .collection('concerts')
-          .doc(concertId)
-          .collection('carpools')
-          .where('chatRoomId', isEqualTo: chatRoomId)
-          .limit(1)
-          .get();
-
-      if (carpoolQuery.docs.isEmpty) throw Exception('Carpool not found');
-
-      final carpoolDoc = carpoolQuery.docs.first;
-      final batch = _firestore.batch();
-
-      // Update RSVP status
-      batch.update(carpoolDoc.reference, {
-        'rsvpStatus.${user.uid}': status,
-      });
-
-      // Get driver info for notification
-      final driverId = carpoolDoc.get('driverId');
-      if (driverId != user.uid) {
-        final userDoc = await _users.doc(user.uid).get();
-        final username = userDoc.get('username');
-
-        batch.set(
-          _users.doc(driverId).collection('notifications').doc(),
-          {
-            'type': 'CARPOOL_MESSAGE',
-            'message': '$username is "$status" in the carpool meetup',
-            'chatRoomId': chatRoomId,
-            'timestamp': FieldValue.serverTimestamp(),
-            'isRead': false,
-          },
-        );
-      }
-
-      await batch.commit();
-    } catch (e) {
-      throw Exception('Failed to update RSVP status: ${e.toString()}');
-    }
-  }
-
-  // Kick from group
-  Future<void> kickFromGroup(
-      String chatRoomId, String userId, String concertId) async {
-    final batch = _firestore.batch();
-
-    try {
-      // First find the group document using chatRoomId
-      QuerySnapshot groupQuery = await _firestore
-          .collection('concerts')
-          .doc(concertId)
-          .collection('groups')
-          .where('chatRoomId', isEqualTo: chatRoomId)
-          .get();
-
-      if (groupQuery.docs.isEmpty) {
-        throw Exception('Group not found');
-      }
-
-      DocumentSnapshot groupDoc = groupQuery.docs.first;
-
-      // Update members count and list in group
-      batch.update(groupDoc.reference, {
-        'membersCount': FieldValue.increment(-1),
-        'members': FieldValue.arrayRemove([userId]),
-        'kickedMembers':
-            FieldValue.arrayUnion([userId]), // Keep track of kicked members
-      });
-
-      // Remove from chat room participants
-      final chatRoomRef = _firestore.collection('chatRooms').doc(chatRoomId);
-      batch.update(chatRoomRef, {
-        'participants': FieldValue.arrayRemove([userId]),
-      });
-
-      // Add notification for kicked user
-      final notifRef = _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('notifications')
-          .doc();
-
-      batch.set(notifRef, {
-        'type': 'GROUP_MESSAGE',
-        'message': 'You have been removed from the group',
-        'timestamp': FieldValue.serverTimestamp(),
-        'isRead': false,
-      });
-
-      await batch.commit();
-    } catch (e) {
-      throw Exception('Failed to kick member: ${e.toString()}');
-    }
-  }
-
-  // Check if user can join group
-  Future<bool> canJoinGroup(
-      String chatRoomId, String userId, String concertId) async {
-    try {
-      // First get the group document using chatRoomId
-      QuerySnapshot groupQuery = await _firestore
-          .collection('concerts')
-          .doc(concertId)
-          .collection('groups')
-          .where('chatRoomId', isEqualTo: chatRoomId)
-          .get();
-
-      if (groupQuery.docs.isEmpty) {
-        return false;
-      }
-
-      DocumentSnapshot groupDoc = groupQuery.docs.first;
-      final data = groupDoc.data() as Map<String, dynamic>;
-
-      // Always allow group creator to join
-      if (data['createdBy'] == userId) {
-        return true;
-      }
-
-      // Check for kicked or left members
-      final kickedMembers = List<String>.from(data['kickedMembers'] ?? []);
-      final leftMembers = List<String>.from(data['leftMembers'] ?? []);
-
-      return !kickedMembers.contains(userId) && !leftMembers.contains(userId);
-    } catch (e) {
-      return false;
-    }
-  }
-
-// Check if user can join carpool
-  Future<bool> canJoinCarpool(String chatRoomId, String concertId) async {
-    try {
-      final carpoolQuery = await _firestore
-          .collection('concerts')
-          .doc(concertId)
-          .collection('carpools')
-          .where('chatRoomId', isEqualTo: chatRoomId)
-          .limit(1)
-          .get();
-
-      if (carpoolQuery.docs.isEmpty) return false;
-
-      final carpoolDoc = carpoolQuery.docs.first;
-      final availableSlots = carpoolDoc.get('availableSlots') ?? 0;
-      final status = carpoolDoc.get('status') ?? 'CarpoolStatus.active';
-
-      return availableSlots > 0 && status == 'CarpoolStatus.active';
-    } catch (e) {
-      return false;
-    }
-  }
-
-  Future<void> leaveGroup(String chatRoomId, String concertId) async {
-    User? user = currentUser;
-    if (user == null) throw Exception('Not signed in');
-
-    final batch = _firestore.batch();
-
-    try {
-      // First get the group document using chatRoomId
-      QuerySnapshot groupQuery = await _firestore
-          .collection('concerts')
-          .doc(concertId)
-          .collection('groups')
-          .where('chatRoomId', isEqualTo: chatRoomId)
-          .get();
-
-      if (groupQuery.docs.isEmpty) {
-        throw Exception('Group not found');
-      }
-
-      DocumentSnapshot groupDoc = groupQuery.docs.first;
-
-      // Update group document
-      batch.update(groupDoc.reference, {
-        'membersCount': FieldValue.increment(-1),
-        'members': FieldValue.arrayRemove([user.uid]),
-        'leftMembers': FieldValue.arrayUnion([user.uid]), // Track who left
-      });
-
-      // Remove from chat room participants
-      final chatRoomRef = _firestore.collection('chatRooms').doc(chatRoomId);
-      batch.update(chatRoomRef, {
-        'participants': FieldValue.arrayRemove([user.uid]),
-      });
-
-      await batch.commit();
-    } catch (e) {
-      throw Exception('Failed to leave group: ${e.toString()}');
-    }
-  }
-
-  // For navigation of notifications
-  void handleNotificationNavigation(
-      BuildContext context, NotificationModel notification) async {
-    bool isAdmin = await isUserAdmin();
-
-    switch (notification.type) {
-      case NotificationType.GROUP_MESSAGE:
-      case NotificationType.CARPOOL_MESSAGE:
-        Navigator.push(
-          // Changed to push instead of pushAndRemoveUntil
-          context,
-          MaterialPageRoute(
-            builder: (context) => const MessagesPage(),
-          ),
-        );
-        break;
-
-      case NotificationType.CONCERT_UPDATE:
-        if (notification.concertId != null) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ConcertDetailsPage(
-                concertId: notification.concertId!,
-                isAdmin: isAdmin, // Pass isAdmin here
-              ),
-            ),
-          );
-        }
-        break;
-
-      case NotificationType.TICKET_UPDATE:
-        if (notification.concertId != null) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => TicketMarketPage(
-                concertId: notification.concertId!,
-              ),
-            ),
-          );
-        }
-        break;
-
-      case NotificationType.USER_STATUS:
-        Navigator.pop(context);
-        break;
-    }
-  }
-
-  // Methods for email verification indicator
-  Future<void> initializeEmailVerificationStatus() async {
-    User? user = _auth.currentUser;
-    if (user == null) return;
-
-    // Update on sign-in/sign-up
-    await _users.doc(user.uid).update({
-      'emailVerified': user.emailVerified,
-    });
-  }
-
-  Future<void> updateUserEmailVerificationStatus(String userId) async {
-    final user = FirebaseAuth.instance.currentUser;
+  // Used to update email verification status for faster checking (if changes happen)
+  Future<void> updateEmailVerificationStatus(String userId) async {
+    User? user = FirebaseAuth.instance.currentUser;
     if (user?.uid == userId) {
       await user?.reload(); // Refresh the user's status
       await _users.doc(userId).update({
@@ -2355,6 +2715,7 @@ class FirebaseService {
     }
   }
 
+  // Another method to update email verification asap
   Future<void> checkAndUpdateEmailVerification() async {
     User? user = _auth.currentUser;
     if (user != null) {
@@ -2365,21 +2726,19 @@ class FirebaseService {
     }
   }
 
-  // Call this after email verification
+  // Called after doing email verification, to send email to user
   Future<void> sendEmailVerification() async {
     User? user = _auth.currentUser;
     if (user != null && !user.emailVerified) {
       await user.sendEmailVerification();
+      await checkAndUpdateEmailVerification();
       await _users.doc(user.uid).update({
         'emailVerified': false,
       });
     }
   }
 
-  Future<void> sendPasswordResetEmail(String email) async {
-    await _auth.sendPasswordResetEmail(email: email);
-  }
-
+  // Updates user email with verification
   Future<void> updateEmail(String newEmail, String password) async {
     try {
       User? user = _auth.currentUser;
@@ -2399,343 +2758,17 @@ class FirebaseService {
     }
   }
 
-  Future<void> updateEmailVerificationStatus(String userId) async {
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user?.uid == userId) {
-      await user?.reload(); // Refresh the user's status
-      await _users.doc(userId).update({
-        'isEmailVerified': user?.emailVerified ?? false,
-      });
-    }
+  // Sends email to user for password reset
+  Future<void> sendPasswordResetEmail(String email) async {
+    await _auth.sendPasswordResetEmail(email: email);
   }
 
+  // Listener if email changes, updates email displayed in app
   void listenToEmailChanges(Function(String) onEmailChanged) {
     _auth.authStateChanges().listen((User? user) {
       if (user != null) {
         onEmailChanged(user.email ?? '');
       }
     });
-  }
-
-  // Ticket Verification Methods
-  Future<void> submitTicketVerification(String concertId, File image) async {
-    User? user = currentUser;
-    if (user == null) throw Exception('User not signed in');
-
-    try {
-      // First, delete any existing pending verifications for this user and concert
-      QuerySnapshot existingVerifications = await _firestore
-          .collection('ticket_verifications')
-          .where('userId', isEqualTo: user.uid)
-          .where('concertId', isEqualTo: concertId)
-          .where('status', isEqualTo: 'pending')
-          .get();
-
-      // Delete found documents in a batch
-      final batch = _firestore.batch();
-      for (var doc in existingVerifications.docs) {
-        batch.delete(doc.reference);
-      }
-      await batch.commit();
-
-      // Upload new image to Firebase Storage
-      final ref = _storage.ref().child(
-          'ticket_verifications/${DateTime.now().millisecondsSinceEpoch}.jpg');
-      await ref.putFile(image);
-      final imageUrl = await ref.getDownloadURL();
-
-      // Get user data
-      DocumentSnapshot userDoc = await _users.doc(user.uid).get();
-      String userName =
-          '${userDoc.get('firstName')} ${userDoc.get('lastName')}';
-
-      // Create new verification document
-      await _firestore.collection('ticket_verifications').add({
-        'userId': user.uid,
-        'concertId': concertId,
-        'imageUrl': imageUrl,
-        'isApproved': false,
-        'status': 'pending',
-        'submittedAt': FieldValue.serverTimestamp(),
-        'userName': userName,
-      });
-    } catch (e) {
-      throw Exception('Failed to submit ticket verification: $e');
-    }
-  }
-
-  Stream<List<TicketVerification>> getPendingVerifications() {
-    return _firestore
-        .collection('ticket_verifications')
-        .where('status', isEqualTo: 'pending')
-        .orderBy('submittedAt', descending: true) // Get newest first
-        .snapshots()
-        .map((snapshot) {
-      final verifications = snapshot.docs
-          .map((doc) => TicketVerification.fromMap(doc.data(), doc.id))
-          .toList();
-
-      // Keep only the latest submission per user/concert combination
-      final Map<String, TicketVerification> latestVerifications = {};
-      for (var verification in verifications) {
-        final key = '${verification.userId}_${verification.concertId}';
-        if (!latestVerifications.containsKey(key)) {
-          latestVerifications[key] = verification;
-        }
-      }
-
-      return latestVerifications.values.toList();
-    });
-  }
-
-  Stream<bool> checkVerificationStatus(String concertId) {
-    User? user = currentUser;
-    if (user == null) return Stream.value(false);
-
-    // For admins and super admins
-    return _firestore
-        .collection('users')
-        .doc(user.uid)
-        .snapshots()
-        .asyncMap((userDoc) async {
-      // Check admin status
-      final isAdmin = userDoc.data()?['isAdmin'] ?? false;
-      final isSuperAdmin = userDoc.data()?['isSuperAdmin'] ?? false;
-      if (isAdmin || isSuperAdmin) return true;
-
-      // For regular users, check verification status
-      QuerySnapshot verifications = await _firestore
-          .collection('ticket_verifications')
-          .where('userId', isEqualTo: user.uid)
-          .where('concertId', isEqualTo: concertId)
-          .where('isApproved', isEqualTo: true)
-          .get();
-
-      return verifications.docs.isNotEmpty;
-    });
-  }
-
-  Future<void> approveVerification(String verificationId) async {
-    if (!await isUserAdmin()) throw Exception('Unauthorized action');
-
-    User? admin = currentUser;
-    if (admin == null) throw Exception('Admin not signed in');
-
-    // Get the verification document
-    DocumentSnapshot verificationDoc = await _firestore
-        .collection('ticket_verifications')
-        .doc(verificationId)
-        .get();
-
-    final data = verificationDoc.data() as Map<String, dynamic>;
-    final userId = data['userId'];
-    final concertId = data['concertId'];
-
-    // Get concert details for the message
-    DocumentSnapshot concertDoc =
-        await _firestore.collection('concerts').doc(concertId).get();
-    final concertData = concertDoc.data() as Map<String, dynamic>;
-    final artistName = concertData['artistName'];
-
-    // Update verification status
-    await _firestore
-        .collection('ticket_verifications')
-        .doc(verificationId)
-        .update({
-      'isApproved': true,
-      'status': 'approved',
-      'verifiedAt': FieldValue.serverTimestamp(),
-      'verifiedBy': admin.uid,
-    });
-
-    // Create notification for user
-    await createNotification(
-      type: NotificationType.USER_STATUS,
-      message:
-          'Welcome to the $artistName concert! Your ticket has been verified successfully.',
-      concertId: concertId,
-      recipients: [userId],
-    );
-  }
-
-  Future<void> rejectVerification(String verificationId, String reason) async {
-    if (!await isUserAdmin()) throw Exception('Unauthorized action');
-
-    User? admin = currentUser;
-    if (admin == null) throw Exception('Admin not signed in');
-
-    // Get the verification document
-    DocumentSnapshot verificationDoc = await _firestore
-        .collection('ticket_verifications')
-        .doc(verificationId)
-        .get();
-
-    final data = verificationDoc.data() as Map<String, dynamic>;
-    final userId = data['userId'];
-    final concertId = data['concertId'];
-
-    // Get concert details for the message
-    DocumentSnapshot concertDoc =
-        await _firestore.collection('concerts').doc(concertId).get();
-    final concertData = concertDoc.data() as Map<String, dynamic>;
-    final artistName = concertData['artistName'];
-
-    await _firestore
-        .collection('ticket_verifications')
-        .doc(verificationId)
-        .update({
-      'isApproved': false,
-      'status': 'rejected',
-      'verifiedAt': FieldValue.serverTimestamp(),
-      'verifiedBy': admin.uid,
-      'rejectionReason': reason,
-    });
-
-    // Create notification with specific concert name
-    await createNotification(
-      type: NotificationType.USER_STATUS,
-      message:
-          'Unfortunately, your ticket verification for $artistName concert was rejected. Reason: $reason',
-      concertId: concertId,
-      recipients: [userId],
-    );
-  }
-
-  // Carpool rating methods
-  Future<void> submitRating(String concertId, String chatRoomId, double rating,
-      {String? comment}) async {
-    User? user = currentUser;
-    if (user == null) throw Exception('Not signed in');
-
-    if (comment != null && comment.length > 50) {
-      throw Exception('Comment cannot exceed 50 characters');
-    }
-
-    // Find carpool doc
-    final carpoolQuery = await _firestore
-        .collection('concerts')
-        .doc(concertId)
-        .collection('carpools')
-        .where('chatRoomId', isEqualTo: chatRoomId)
-        .limit(1)
-        .get();
-
-    if (carpoolQuery.docs.isEmpty) {
-      throw Exception('Carpool not found');
-    }
-
-    final carpoolDoc = carpoolQuery.docs.first;
-    final driverId = carpoolDoc.get('driverId');
-    final ratedBy = List<String>.from(carpoolDoc.get('ratedBy') ?? []);
-    final userData = await getUserProfile();
-    final username = userData['username'];
-
-    // Check if already rated
-    if (ratedBy.contains(user.uid)) {
-      throw Exception('You have already rated this carpool');
-    }
-
-    final batch = _firestore.batch();
-
-    // Update carpool ratedBy
-    batch.update(carpoolDoc.reference, {
-      'ratedBy': FieldValue.arrayUnion([user.uid]),
-    });
-
-    // Update driver's ratings in their user document
-    final driverRef = _users.doc(driverId);
-    batch.update(driverRef, {
-      'carpoolRatings': FieldValue.increment(rating),
-      'totalCarpoolRatings': FieldValue.increment(1),
-    });
-
-    // Create notification for driver
-    batch.set(
-      _users.doc(driverId).collection('notifications').doc(),
-      {
-        'type': NotificationType.CARPOOL_MESSAGE.toString().split('.').last,
-        'message':
-            '$username rated your carpool ${rating.toStringAsFixed(1)} stars${comment != null ? '\nComment: $comment' : ''}',
-        'chatRoomId': chatRoomId,
-        'timestamp': FieldValue.serverTimestamp(),
-        'isRead': false,
-      },
-    );
-
-    await batch.commit();
-  }
-
-  Stream<double> getDriverRating(String driverId) {
-    return _firestore
-        .collection('ratings')
-        .where('driverId', isEqualTo: driverId)
-        .snapshots()
-        .map((snapshot) {
-      if (snapshot.docs.isEmpty) return 0.0;
-      double total = 0;
-      int count = 0;
-      for (var doc in snapshot.docs) {
-        double? rating = doc.get('rating');
-        if (rating != null) {
-          total += rating;
-          count++;
-        }
-      }
-      return count > 0 ? total / count : 0.0;
-    });
-  }
-
-  Future<void> markCarpoolComplete(String chatRoomId) async {
-    try {
-      final carpoolQuery = await _firestore.collection('concerts').get().then(
-          (snapshot) => snapshot.docs
-              .map((doc) => doc.reference
-                  .collection('carpools')
-                  .where('chatRoomId', isEqualTo: chatRoomId)
-                  .limit(1)
-                  .get())
-              .first);
-
-      if (carpoolQuery.docs.isEmpty) {
-        throw Exception('Carpool not found');
-      }
-
-      final carpoolDoc = carpoolQuery.docs.first;
-      final batch = _firestore.batch();
-
-      // Update status
-      batch.update(carpoolDoc.reference, {
-        'status': CarpoolStatus.completed.toString(),
-        'completedAt': FieldValue.serverTimestamp(),
-        'ratedBy': [],
-      });
-
-      // Get list of passengers (excluding driver)
-      final passengers = List<String>.from(carpoolDoc.get('passengers') ?? []);
-      final driverId = carpoolDoc.get('driverId');
-
-      // Create notifications only for passengers
-      for (String userId in passengers) {
-        if (userId != driverId) {
-          // Skip if it's the driver
-          batch.set(
-            _users.doc(userId).collection('notifications').doc(),
-            {
-              'type':
-                  NotificationType.CARPOOL_MESSAGE.toString().split('.').last,
-              'message':
-                  'Carpool has been marked as complete. Please rate your experience.',
-              'chatRoomId': chatRoomId,
-              'timestamp': FieldValue.serverTimestamp(),
-              'isRead': false,
-            },
-          );
-        }
-      }
-
-      await batch.commit();
-    } catch (e) {
-      throw Exception('Failed to mark carpool as complete');
-    }
   }
 }
