@@ -8,10 +8,10 @@ class MessagesPage extends StatefulWidget {
   const MessagesPage({super.key});
 
   @override
-  _MessagesPageState createState() => _MessagesPageState();
+  MessagesPageState createState() => MessagesPageState();
 }
 
-class _MessagesPageState extends State<MessagesPage>
+class MessagesPageState extends State<MessagesPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 

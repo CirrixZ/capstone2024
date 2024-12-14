@@ -1,10 +1,10 @@
 import 'package:capstone/core/constants/colors.dart';
 import 'package:flutter/material.dart';
 
-class authButton extends StatelessWidget {
+class AuthButton extends StatelessWidget {
   final Function()? onTap;
   final String text;
-  const authButton({super.key, required this.onTap, required this.text,});
+  const AuthButton({super.key, required this.onTap, required this.text,});
 
   @override
   Widget build(BuildContext context) {

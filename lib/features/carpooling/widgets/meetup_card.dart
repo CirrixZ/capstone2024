@@ -29,7 +29,6 @@ class MeetupCard extends StatelessWidget {
   });
 
   void _showMeetupEditDialog(BuildContext context) {
-    print("CarpoolData: $carpoolData"); // Add this line
     final locationController = TextEditingController(
       text: carpoolData['meetupLocation'] ?? '',
     );

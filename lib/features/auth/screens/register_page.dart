@@ -262,7 +262,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           valueColor:
                               AlwaysStoppedAnimation<Color>(Color(0xFF7000FF)),
                         )
-                      : authButton(
+                      : AuthButton(
                           text: "Sign Up",
                           onTap: signUserUp,
                         ),

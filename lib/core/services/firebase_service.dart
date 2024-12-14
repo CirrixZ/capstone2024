@@ -710,7 +710,6 @@ class FirebaseService {
         await _firestore.collection('chatRooms').doc(chatRoomId).get();
 
     if (!chatRoomDoc.exists) {
-      print('Chat room not found');
       return;
     }
 
@@ -844,7 +843,6 @@ class FirebaseService {
         'totalRatings': 0,
       });
     } catch (e) {
-      print('Error creating carpool: $e');
       throw Exception('Failed to create carpool');
     }
   }
@@ -1038,7 +1036,6 @@ class FirebaseService {
 
       await batch.commit();
     } catch (e) {
-      print('Error kicking from carpool: $e');
       throw Exception('Failed to remove member from carpool');
     }
   }
@@ -1050,7 +1047,6 @@ class FirebaseService {
         .doc(chatRoomId)
         .snapshots()
         .handleError((error) {
-      print('Error in getGroupDetails: $error');
       return null;
     });
   }
@@ -1058,7 +1054,6 @@ class FirebaseService {
   // Carpool chat screen
   Stream<DocumentSnapshot> getCarpoolDetails(String chatRoomId) {
     return _chatRooms.doc(chatRoomId).snapshots().handleError((error) {
-      print('Error getting carpool details: $error');
       throw Exception('Failed to load carpool details');
     });
   }
@@ -1135,7 +1130,6 @@ class FirebaseService {
         'members': [user.uid],
       });
     } catch (e) {
-      print('Error in createGroup: $e');
       throw Exception('Error creating group: $e');
     }
   }
@@ -1246,7 +1240,8 @@ class FirebaseService {
     });
   }
 
-  Future<void> createConcert({ // Used in add_concert_screen
+  Future<void> createConcert({
+    // Used in add_concert_screen
     required String imageUrl,
     required String artistName,
     required String concertName,
@@ -1284,7 +1279,6 @@ class FirebaseService {
         }
       });
     } catch (e) {
-      print('Error creating concert: $e');
       throw Exception('Failed to create concert: $e');
     }
   }
@@ -1845,28 +1839,24 @@ class FirebaseService {
     required String userId,
     required NotificationType type,
   }) async {
-    try {
-      DocumentSnapshot userDoc =
-          await _firestore.collection('users').doc(userId).get();
+    DocumentSnapshot userDoc =
+        await _firestore.collection('users').doc(userId).get();
 
-      if (!userDoc.exists) return;
+    if (!userDoc.exists) return;
 
-      Map<String, dynamic>? settings =
-          (userDoc.data() as Map<String, dynamic>)['notificationSettings'];
+    Map<String, dynamic>? settings =
+        (userDoc.data() as Map<String, dynamic>)['notificationSettings'];
 
-      // Check if sound/vibration should be played
-      bool playSound = settings?['soundEnabled'] ?? true;
-      bool useVibration = settings?['vibrationEnabled'] ?? true;
+    // Check if sound/vibration should be played
+    bool playSound = settings?['soundEnabled'] ?? true;
+    bool useVibration = settings?['vibrationEnabled'] ?? true;
 
-      if (playSound) {
-        SystemSound.play(SystemSoundType.alert);
-      }
+    if (playSound) {
+      SystemSound.play(SystemSoundType.alert);
+    }
 
-      if (useVibration) {
-        HapticFeedback.mediumImpact();
-      }
-    } catch (e) {
-      print('Error checking notification preferences: $e');
+    if (useVibration) {
+      HapticFeedback.mediumImpact();
     }
   }
 
@@ -1942,7 +1932,6 @@ class FirebaseService {
         'isRead': false,
       });
     } catch (e) {
-      print('Error in demoteAdmin: $e'); // For debugging
       throw Exception('Failed to demote admin: ${e.toString()}');
     }
   }
@@ -2021,7 +2010,6 @@ class FirebaseService {
 
       await batch.commit();
     } catch (e) {
-      print('Error in banUser: $e');
       throw Exception('Failed to ban user: ${e.toString()}');
     }
   }
@@ -2069,7 +2057,6 @@ class FirebaseService {
 
       await batch.commit();
     } catch (e) {
-      print('Error in unbanUser: $e');
       throw Exception('Failed to unban user: ${e.toString()}');
     }
   }
@@ -2117,7 +2104,6 @@ class FirebaseService {
         'location': location, // Add this line to update main location too
       });
     } catch (e) {
-      print('Error updating meetup details: $e');
       throw Exception('Failed to update meetup details');
     }
   }
@@ -2224,7 +2210,6 @@ class FirebaseService {
 
       await batch.commit();
     } catch (e) {
-      print('Error in kickFromGroup: $e'); // For debugging
       throw Exception('Failed to kick member: ${e.toString()}');
     }
   }
@@ -2259,7 +2244,6 @@ class FirebaseService {
 
       return !kickedMembers.contains(userId) && !leftMembers.contains(userId);
     } catch (e) {
-      print('Error in canJoinGroup: $e');
       return false;
     }
   }
@@ -2283,7 +2267,6 @@ class FirebaseService {
 
       return availableSlots > 0 && status == 'CarpoolStatus.active';
     } catch (e) {
-      print('Error checking carpool availability: $e');
       return false;
     }
   }
@@ -2324,7 +2307,6 @@ class FirebaseService {
 
       await batch.commit();
     } catch (e) {
-      print('Error in leaveGroup: $e'); // For debugging
       throw Exception('Failed to leave group: ${e.toString()}');
     }
   }
@@ -2780,7 +2762,6 @@ class FirebaseService {
 
       await batch.commit();
     } catch (e) {
-      print('Error marking carpool complete: $e');
       throw Exception('Failed to mark carpool as complete');
     }
   }

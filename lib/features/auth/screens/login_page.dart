@@ -290,7 +290,7 @@ class _LoginPageState extends State<LoginPage> {
                               AppColors.buttonColor,
                             ),
                           )
-                        : authButton(
+                        : AuthButton(
                             text: _isAdminLogin
                                 ? "Admin Sign In"
                                 : "User Sign In",

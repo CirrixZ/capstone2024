@@ -92,8 +92,7 @@ class ImagePickerUtil {
 
       if (croppedFile == null) return null;
       return File(croppedFile.path);
-    } catch (e, stackTrace) {
-      print('Error picking/cropping image: $e\n$stackTrace');
+    } catch (e) {
       return null;
     }
   }
@@ -190,8 +189,7 @@ class ImagePickerUtil {
 
       if (croppedFile == null) return null;
       return File(croppedFile.path);
-    } catch (e, stackTrace) {
-      print('Error picking/cropping profile image: $e\n$stackTrace');
+    } catch (e) {
       return null;
     }
   }
@@ -282,8 +280,7 @@ class ImagePickerUtil {
 
     if (croppedFile == null) return null;
     return File(croppedFile.path);
-  } catch (e, stackTrace) {
-    print('Error picking/cropping chat image: $e\n$stackTrace');
+  } catch (e) {
     return null;
   }
 }

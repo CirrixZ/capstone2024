@@ -12,10 +12,10 @@ class NotificationsPage extends StatefulWidget {
   const NotificationsPage({super.key});
 
   @override
-  _NotificationsPageState createState() => _NotificationsPageState();
+  NotificationsPageState createState() => NotificationsPageState();
 }
 
-class _NotificationsPageState extends State<NotificationsPage> {
+class NotificationsPageState extends State<NotificationsPage> {
   final FirebaseService _firebaseService = FirebaseService();
   NotificationType? _selectedType;
   bool _groupByDate = false;

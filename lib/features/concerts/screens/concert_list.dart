@@ -12,10 +12,10 @@ class ConcertList extends StatefulWidget {
   const ConcertList({super.key});
 
   @override
-  _ConcertListState createState() => _ConcertListState();
+  ConcertListState createState() => ConcertListState();
 }
 
-class _ConcertListState extends State<ConcertList> {
+class ConcertListState extends State<ConcertList> {
   final FirebaseService _firebaseService = FirebaseService();
   String _userName = '';
 
@@ -38,7 +38,6 @@ class _ConcertListState extends State<ConcertList> {
         _userName = '${userProfile['firstName']} ${userProfile['lastName']}';
       });
     } catch (e) {
-      print('Error loading user profile: $e');
       setState(() {
         _userName = 'User';
       });

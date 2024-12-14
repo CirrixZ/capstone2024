@@ -21,7 +21,6 @@ class AuthPage extends StatelessWidget {
                   .get(),
               builder: (context, userSnapshot) {
                 if (userSnapshot.connectionState == ConnectionState.waiting) {
-                  print("Waiting for user data...");
                   return const Center(child: CircularProgressIndicator());
                 }
                 

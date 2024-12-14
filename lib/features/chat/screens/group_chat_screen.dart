@@ -21,10 +21,10 @@ class GroupChatScreen extends StatefulWidget {
   });
 
   @override
-  _GroupChatScreenState createState() => _GroupChatScreenState();
+  GroupChatScreenState createState() => GroupChatScreenState();
 }
 
-class _GroupChatScreenState extends State<GroupChatScreen> {
+class GroupChatScreenState extends State<GroupChatScreen> {
   final FirebaseService _firebaseService = FirebaseService();
 
   @override
@@ -54,7 +54,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
       await _firebaseService.joinGroup(widget.concertId, groupDocId);
       await _firebaseService.markChatAsRead(widget.groupId);
     } catch (e) {
-      print('Error initializing group chat: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
