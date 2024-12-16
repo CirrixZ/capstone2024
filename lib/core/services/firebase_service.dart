@@ -440,63 +440,74 @@ class FirebaseService {
         .orderBy('timestamp', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
+            .where((doc) =>
+                doc.data()['timestamp'] != null) // Filter out null timestamps
             .map((doc) => Message.fromMap(doc.data(), doc.id))
             .toList());
   }
 
   // Sends text message to chats
   Future<void> sendMessage(String chatRoomId, String text) async {
-    final message = Message(
-      id: '',
-      senderId: currentUser!.uid,
-      text: text,
-      timestamp: Timestamp.now(),
-    );
+    if (text.trim().isEmpty) return;
 
-    // Get chat room details
-    DocumentSnapshot chatRoom =
-        await _firestore.collection('chatRooms').doc(chatRoomId).get();
+    try {
+      // Get chat room details first
+      DocumentSnapshot chatRoom =
+          await _firestore.collection('chatRooms').doc(chatRoomId).get();
 
-    Map<String, dynamic> chatData = chatRoom.data() as Map<String, dynamic>;
-    List<String> participants =
-        List<String>.from(chatData['participants'] ?? []);
-    String chatType = chatData['type'];
-    String chatName = chatData['name'];
+      Map<String, dynamic> chatData = chatRoom.data() as Map<String, dynamic>;
+      List<String> participants =
+          List<String>.from(chatData['participants'] ?? []);
+      String chatType = chatData['type'];
+      String chatName = chatData['name'];
 
-    // Send message
-    await _firestore
-        .collection('chatRooms')
-        .doc(chatRoomId)
-        .collection('messages')
-        .add(message.toMap());
+      // Prepare message data
+      final messageData = {
+        'senderId': currentUser!.uid,
+        'text': text,
+        'timestamp': FieldValue.serverTimestamp(),
+        'imageUrl': null,
+      };
 
-    // Update chat preview
-    await updateChatPreviewForNewMessage(chatRoomId, text);
+      // Send message
+      await _firestore
+          .collection('chatRooms')
+          .doc(chatRoomId)
+          .collection('messages')
+          .add(messageData);
 
-    // Create notifications for other participants
-    List<String> recipients = participants..remove(currentUser!.uid);
-    if (recipients.isNotEmpty) {
-      String senderName = (await getUserProfile())['username'] ?? 'Someone';
+      // Update chat preview
+      await updateChatPreviewForNewMessage(chatRoomId, text);
 
-      // Customize notification text based on chat type
-      String notificationText;
-      if (chatType == 'group') {
-        notificationText = "$senderName sent a message in $chatName";
-      } else if (chatType == 'carpool') {
-        notificationText = "$senderName sent a message in $chatName's carpool";
-      } else {
-        notificationText = "$senderName sent a message in $chatName";
+      // Create notifications for other participants
+      List<String> recipients = participants..remove(currentUser!.uid);
+      if (recipients.isNotEmpty) {
+        String senderName = (await getUserProfile())['username'] ?? 'Someone';
+
+        // Customize notification text based on chat type
+        String notificationText;
+        if (chatType == 'group') {
+          notificationText = "$senderName sent a message in $chatName";
+        } else if (chatType == 'carpool') {
+          notificationText =
+              "$senderName sent a message in $chatName's carpool";
+        } else {
+          notificationText = "$senderName sent a message in $chatName";
+        }
+
+        await createNotification(
+          type: chatType == 'group'
+              ? NotificationType.GROUP_MESSAGE
+              : NotificationType.CARPOOL_MESSAGE,
+          message: notificationText,
+          chatRoomId: chatRoomId,
+          senderId: currentUser!.uid,
+          recipients: recipients,
+        );
       }
-
-      await createNotification(
-        type: chatType == 'group'
-            ? NotificationType.GROUP_MESSAGE
-            : NotificationType.CARPOOL_MESSAGE,
-        message: notificationText,
-        chatRoomId: chatRoomId,
-        senderId: currentUser!.uid,
-        recipients: recipients,
-      );
+    } catch (e) {
+      print('Error sending message: $e');
+      throw Exception('Failed to send message');
     }
   }
 
