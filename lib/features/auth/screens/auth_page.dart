@@ -23,15 +23,6 @@ class AuthPage extends StatelessWidget {
                 if (userSnapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                
-                if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
-                  return const Center(
-                    child: Text('Creating account...', 
-                      style: TextStyle(color: Colors.white)
-                    ),
-                  );
-                }
-
                 return const ConcertList();
               },
             );

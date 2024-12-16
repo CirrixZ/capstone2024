@@ -72,7 +72,7 @@ class StartPage extends StatelessWidget {
                           Color(0xFF9C27B0), // Rich purple
                           Color(0xFF7B1FA2), // Deep purple
                           Color(0xFFAB47BC), // Light purple
-                          Color(0xFF6A1B9A), // Dark purple
+                          Color(0xFFAB47BC), // Dark purple
                         ],
                         stops: const [
                           0.1,
@@ -80,16 +80,6 @@ class StartPage extends StatelessWidget {
                           0.6,
                           0.9
                         ], // Control color distribution
-                      ),
-                      Positioned.fill(
-                        child: ClipRect(
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 0.0, sigmaY: 0.0),
-                            child: Container(
-                              color: Colors.transparent,
-                            ),
-                          ),
-                        ),
                       ),
                     ],
                   ),

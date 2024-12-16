@@ -139,6 +139,7 @@ class _LoginPageState extends State<LoginPage> {
     return AuthErrorBoundary(
       onRetry: _isLoading ? null : signUserIn,
       onAuthError: (e) => _showErrorSnackbar(_getErrorMessage(e.code)),
+      // Background Image
       child: Container(
         decoration: const BoxDecoration(
           image: DecorationImage(
@@ -154,7 +155,6 @@ class _LoginPageState extends State<LoginPage> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const SizedBox(height: 20),
                     // Align the welcome text to the left
                     Align(
                       alignment: Alignment.centerLeft,
@@ -186,9 +186,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(height: 30),
                     Text(
-                      _isAdminLogin
-                          ? 'Sign-in to your account'
-                          : 'Sign-in to your account',
+                      'Sign-in to your account',
                       style: const TextStyle(color: Colors.white, fontSize: 16),
                     ),
                     const SizedBox(height: 10),
@@ -248,9 +246,8 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           )
                         : AuthButton(
-                            text: _isAdminLogin
-                                ? "Admin Sign In"
-                                : "User Sign In",
+                            text:
+                                _isAdminLogin ? "Admin Sign In" : "User Sign In",
                             onTap: signUserIn,
                           ),
                     const SizedBox(height: 8),
@@ -271,7 +268,7 @@ class _LoginPageState extends State<LoginPage> {
                         style: const TextStyle(color: Colors.white),
                       ),
                     ),
-                    const SizedBox(height: 20),
+              
                     if (!_isAdminLogin) ...[
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,

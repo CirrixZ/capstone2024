@@ -52,7 +52,6 @@ class ConcertCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<bool>(
-      // Change to superAdmin stream
       stream: _firebaseService.userSuperAdminStream(),
       builder: (context, snapshot) {
         final isSuperAdmin = snapshot.data ?? false;
