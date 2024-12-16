@@ -77,12 +77,14 @@ class CarpoolCard extends StatelessWidget {
                       left: 8.0,
                       right: 8.0,
                       top: 8.0,
-                      bottom: 4.0,
                     ),
                     child: ClipRRect(
+                      // Padding for carpool card image
                       borderRadius: BorderRadius.only(
                         topLeft: Radius.circular(15),
+                        bottomLeft: Radius.circular(15),
                         topRight: Radius.circular(15),
+                        bottomRight: Radius.circular(15),
                       ),
                       child: Image.network(
                         carpool.imageUrl,
@@ -90,7 +92,6 @@ class CarpoolCard extends StatelessWidget {
                         height: 200, // Fixed height to match group card
                         width: double.infinity,
                         errorBuilder: (context, error, stackTrace) {
-                          print('Error loading image: $error');
                           return Container(
                             height: 200,
                             width: double.infinity,

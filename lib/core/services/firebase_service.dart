@@ -230,7 +230,7 @@ class FirebaseService {
     });
   }
 
-  // Gets details of specific concert
+  // Gets details of specific concert, used in concert details
   Stream<Concert> getConcertDetails(String concertId) {
     return _firestore
         .collection('concerts')

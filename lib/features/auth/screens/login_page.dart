@@ -39,6 +39,7 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  // Toggles between user sign-in and admin sign-in
   void toggleLoginMode() {
     setState(() {
       _isAdminLogin = !_isAdminLogin;
@@ -86,10 +87,7 @@ class _LoginPageState extends State<LoginPage> {
       }
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-
-      if (e.code == 'user-banned') {
-        await _showBanDialog(e.message ?? 'Your account has been suspended');
-      } else {
+      {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_getErrorMessage(e.code)),
@@ -103,9 +101,10 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  // Error messages depending on the situation
   String _getErrorMessage(String code) {
     switch (code) {
-      case 'invalid-credential': // Add this case
+      case 'invalid-credential':
         return 'Incorrect email or password';
       case 'too-many-requests':
         return 'Too many attempts. Please try again later';
@@ -131,47 +130,6 @@ class _LoginPageState extends State<LoginPage> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
         ),
-      ),
-    );
-  }
-
-  Future<void> _showBanDialog(String message) async {
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) => AlertDialog(
-        backgroundColor: AppColors.cardColor,
-        title: const Text(
-          'Account Suspended',
-          style: TextStyle(color: AppColors.textWhite),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              message,
-              style: const TextStyle(color: AppColors.textWhite70),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Please contact support for more information.',
-              style: TextStyle(color: AppColors.textWhite70),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              _firebaseService.signOut();
-              Navigator.pop(context);
-            },
-            child: const Text(
-              'OK',
-              style: TextStyle(color: AppColors.borderColor),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -282,7 +240,6 @@ class _LoginPageState extends State<LoginPage> {
                         ],
                       ),
                     ),
-
                     const SizedBox(height: 25),
                     _isLoading
                         ? const CircularProgressIndicator(

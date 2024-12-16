@@ -69,6 +69,7 @@ class _RegisterPageState extends State<RegisterPage> {
     return usernameRegex.hasMatch(username);
   }
 
+  // Function to check username requirements if it fits
   Future<void> checkUsername(String username) async {
     if (!mounted) return;
 
@@ -95,6 +96,7 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
 
+    // Checks if username is still available
     bool isAvailable = await _firebaseService.isUsernameAvailable(username);
     if (!mounted) return;
 
@@ -125,6 +127,7 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
 
+    // Show error if password and confirm password don't match
     try {
       if (passwordController.text != confirmPasswordController.text) {
         await showErrorDialog("Passwords don't match!");
@@ -153,7 +156,7 @@ class _RegisterPageState extends State<RegisterPage> {
         throw Exception('Failed to create user account');
       }
 
-      // Create user document with chosen notification settings
+      // Create user document to firebase with chosen notification settings
       await FirebaseFirestore.instance
           .collection('users')
           .doc(credential.user!.uid)
@@ -181,6 +184,7 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
+  // Show dialog if any errors happen(requirements not met)
   Future<void> showErrorDialog(String message) async {
     if (!context.mounted) return;
     await showDialog(

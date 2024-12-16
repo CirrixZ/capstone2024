@@ -29,6 +29,7 @@ class CarpoolChatScreen extends StatefulWidget {
 class CarpoolChatScreenState extends State<CarpoolChatScreen> {
   final FirebaseService _firebaseService = FirebaseService();
 
+  // Views image in chat
   void _showImage(
       BuildContext context, String imageUrl, Message message, bool isMe) {
     showDialog(
@@ -65,6 +66,7 @@ class CarpoolChatScreenState extends State<CarpoolChatScreen> {
   }
 
   @override
+  // Marks chat as read when the chat is opened
   void initState() {
     super.initState();
     _firebaseService.markChatAsRead(widget.carpoolId);

@@ -1,8 +1,7 @@
-// lib/features/concerts/widgets/dialog_components.dart
-
 import 'package:flutter/material.dart';
 import 'package:capstone/core/constants/colors.dart';
 
+// Part where concert dialog helpers gets dialog info
 class DialogTextField extends StatelessWidget {
   final TextEditingController controller;
   final String label;

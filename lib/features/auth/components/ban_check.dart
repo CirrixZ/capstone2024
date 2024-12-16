@@ -77,7 +77,7 @@ class BanCheck extends StatelessWidget {
                           );
                         }
                       },
-                      child: const Text('Sign Out'),
+                      child: const Text('Sign Out', style: TextStyle(color: Colors.white),),
                     ),
                   ],
                 ),

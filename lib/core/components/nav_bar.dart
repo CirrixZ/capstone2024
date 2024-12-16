@@ -69,17 +69,7 @@ class NavBar extends StatelessWidget {
                   final userData =
                       snapshot.data!.data() as Map<String, dynamic>?;
                   return UserAccountsDrawerHeader(
-                    accountName: Text(
-                      userData?['username'] ?? 'User',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    accountEmail: Text(
-                      user.email ?? '',
-                      style: const TextStyle(color: Colors.white70),
-                    ),
+                    // User profile picture
                     currentAccountPicture: CircleAvatar(
                       backgroundColor: Colors.white,
                       backgroundImage: userData?['profilePicture'] != null
@@ -92,6 +82,17 @@ class NavBar extends StatelessWidget {
                               color: drawerColor,
                             )
                           : null,
+                    ),
+                    accountName: Text(
+                      userData?['username'] ?? 'User',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    accountEmail: Text(
+                      user.email ?? '',
+                      style: const TextStyle(color: Colors.white70),
                     ),
                     decoration: const BoxDecoration(
                       color: drawerColor,
@@ -123,7 +124,7 @@ class NavBar extends StatelessWidget {
             ),
             StreamBuilder<bool>(
               stream:
-                  _firebaseService.hasUnreadMessages(), // We'll add this method
+                  _firebaseService.hasUnreadMessages(),
               builder: (context, snapshot) {
                 return _buildNavItem(
                   icon: Icons.mail,
@@ -181,11 +182,12 @@ class NavBar extends StatelessWidget {
     );
   }
 
+  // Styling of each nav bar item
   Widget _buildNavItem({
     required IconData icon,
     required String title,
     required VoidCallback onTap,
-    bool showUnreadIndicator = false, // New parameter
+    bool showUnreadIndicator = false,
   }) {
     return ListTile(
       leading: Stack(

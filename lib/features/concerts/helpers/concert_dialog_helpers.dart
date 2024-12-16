@@ -10,6 +10,7 @@ import 'package:capstone/features/concerts/models/concert_model.dart';
 import 'package:capstone/features/concerts/widgets/dialog_components.dart';
 import 'package:intl/intl.dart';
 
+// This is where concert details gets the speedDial to edit concert details
 class ConcertDialogHelpers {
   final FirebaseService _firebaseService;
   final dateFormat = DateFormat('MMMM d, yyyy');

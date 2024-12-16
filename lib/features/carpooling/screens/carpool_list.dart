@@ -9,7 +9,7 @@ import 'package:capstone/core/services/firebase_service.dart';
 
 class CarpoolList extends StatelessWidget {
   final String concertId;
-  final bool isVerified; // New parameter
+  final bool isVerified;
   final FirebaseService _firebaseService = FirebaseService();
 
   CarpoolList({
@@ -55,6 +55,9 @@ class CarpoolList extends StatelessWidget {
               final slots = int.tryParse(value ?? '');
               if (slots == null || slots <= 0) {
                 return 'Please enter a valid number of slots';
+              }
+              if (slots > 20) {
+                return 'Slots cannot exceed 20';
               }
               return null;
             },
