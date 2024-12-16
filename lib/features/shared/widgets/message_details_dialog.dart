@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:capstone/features/chat/models/message_model.dart';
 import 'package:capstone/core/services/firebase_service.dart';
@@ -62,6 +63,18 @@ class MessageDetailsDialog extends StatelessWidget {
         ),
       ),
       actions: [
+        TextButton(
+          onPressed: () {
+            Clipboard.setData(ClipboardData(text: message.text));
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Message copied to clipboard')),
+              );
+              Navigator.pop(context);
+            }
+          },
+          child: const Text('Copy'),
+        ),
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text(
