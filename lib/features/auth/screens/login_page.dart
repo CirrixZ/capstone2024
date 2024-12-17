@@ -156,10 +156,9 @@ class _LoginPageState extends State<LoginPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     // Align the welcome text to the left
-                    Align(
-                      alignment: Alignment.centerLeft,
+                    Center(
                       child: const Text(
-                        "Welcome\nto\nMetaConcert", // Large text
+                        "Welcome to\nMetaConcert", // Large text
                         textAlign: TextAlign.left,
                         style: TextStyle(
                           color: Colors.white,
@@ -170,13 +169,12 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(height: 10),
                     // Align the description text to the left
-                    Align(
-                      alignment: Alignment.centerLeft,
+                    Center(
                       child: SizedBox(
-                        width: 250,
+                        width: 300,
                         child: const Text(
                           "Unite with Music Lovers! Elevate your concert experience with our app’s interactive community, carpool listings, and seamless integrated ticket markets.",
-                          textAlign: TextAlign.left,
+                          textAlign: TextAlign. center,
                           style: TextStyle(
                             color: Colors.white70, // Smaller text color
                             fontSize: 12, // Smaller font size

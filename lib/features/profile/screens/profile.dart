@@ -278,8 +278,7 @@ class ProfilePageState extends State<ProfilePage> {
                   stream: FirebaseAuth.instance.authStateChanges(),
                   builder: (context, snapshot) {
                     final isVerified = snapshot.hasData &&
-                        snapshot.data != null &&
-                        snapshot.data!.emailVerified;
+                        snapshot.data != null;
                     return TextButton.icon(
                       icon: const Icon(Icons.email, color: Colors.white70),
                       label: const Text('Change Email',

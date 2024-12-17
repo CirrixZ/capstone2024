@@ -125,10 +125,10 @@ class _EmailUpdatePageState extends State<EmailUpdatePage> {
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Color(0xFF7000FF)
-                        .withOpacity(0.5), // Semi-transparent warning color
+                    color: Color(0xFF2E0F60)
+                        .withOpacity(0.7), // Semi-transparent warning color
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Color(0xFF2F1552), width: 2),
+                    border: Border.all(color: Color(0xFF7000FF), width: 2),
                   ),
                   child: Row(
                     children: [

@@ -14,9 +14,10 @@ class UserCard extends StatelessWidget {
     required this.user,
   });
 
-  Future<void> _showActionDialog(BuildContext context) async {
+  Future<void> _showActionDialog(
+      BuildContext context, bool isSuperAdmin) async {
     // Get super admin status
-    bool isSuperAdmin = await _firebaseService.isUserSuperAdmin();
+    bool isSuperAdmin = await _firebaseService.isUserAdmin();
 
     if (!context.mounted) return;
 
@@ -39,8 +40,27 @@ class UserCard extends StatelessWidget {
                   title: const Text('Promote to Admin',
                       style: TextStyle(color: Colors.white)),
                   onTap: () async {
-                    await _firebaseService.promoteUser(user.id);
-                    Navigator.pop(context);
+                    print('Attempting to promote user');
+                    if (!isSuperAdmin) {
+                      print('Showing permission denied dialog');
+                      await showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Permission Denied'),
+                          content: const Text(
+                              'Only Super Admins can promote users.'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('OK'),
+                            ),
+                          ],
+                        ),
+                      );
+                    } else {
+                      await _firebaseService.promoteUser(user.id);
+                      Navigator.pop(context);
+                    }
                   },
                 ),
               if (!user.isBanned &&
@@ -78,15 +98,33 @@ class UserCard extends StatelessWidget {
                     if (context.mounted) Navigator.pop(context);
                   },
                 ),
-              if (user.isAdmin && isSuperAdmin && !user.isSuperAdmin)
+              if (user.isAdmin && !user.isSuperAdmin)
                 ListTile(
                   leading:
                       const Icon(Icons.person_remove, color: Colors.orange),
                   title: const Text('Demote from Admin',
                       style: TextStyle(color: Colors.white)),
                   onTap: () async {
-                    await _firebaseService.demoteAdmin(user.id);
-                    Navigator.pop(context);
+                    // Only allow super admins to demote
+                    if (!isSuperAdmin) {
+                      await showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Permission Denied'),
+                          content:
+                              const Text('Only Super Admins can demote users.'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('OK'),
+                            ),
+                          ],
+                        ),
+                      );
+                    } else {
+                      await _firebaseService.demoteAdmin(user.id);
+                      Navigator.pop(context);
+                    }
                   },
                 ),
               ListTile(
@@ -195,14 +233,13 @@ class UserCard extends StatelessWidget {
                 child: Icon(Icons.block, color: Colors.red),
               ),
             StreamBuilder<bool>(
-              stream: _firebaseService.userSuperAdminStream(),
+              stream: _firebaseService.userAdminStream(),
               builder: (context, snapshot) {
+                print('Admin Stream Snapshot: ${snapshot.data}');
                 final isSuperAdmin = snapshot.data ?? false;
-                if (!isSuperAdmin) return const SizedBox.shrink();
-
                 return IconButton(
                   icon: const Icon(Icons.more_vert, color: Colors.white70),
-                  onPressed: () => _showActionDialog(context),
+                  onPressed: () => _showActionDialog(context, isSuperAdmin),
                 );
               },
             ),

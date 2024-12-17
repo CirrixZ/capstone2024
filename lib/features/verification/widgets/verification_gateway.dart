@@ -67,27 +67,7 @@ class VerificationGateway extends StatelessWidget {
                       vertical: 16,
                     ),
                   ),
-                  onPressed: () => showDialog(
-                    context: context,
-                    builder: (context) => TicketVerificationDialog(
-                      onSubmit: (image) async {
-                        await _firebaseService.submitTicketVerification(
-                          concertId,
-                          image,
-                        );
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content:
-                                  Text('Verification submitted successfully'),
-                              backgroundColor: Color(0xFF7000FF),
-                            ),
-                          );
-                          Navigator.pop(context);
-                        }
-                      },
-                    ),
-                  ),
+                  onPressed: () => _showVerificationDialog(context),
                   child: const Text(
                     'Verify Ticket',
                     style: TextStyle(color: Colors.white),
@@ -98,6 +78,31 @@ class VerificationGateway extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  void _showVerificationDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => TicketVerificationDialog(
+        onSubmit: (image) async {
+          await _firebaseService.submitTicketVerification(
+            concertId,
+            image,
+          );
+
+          // Use the root navigator to show SnackBar
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Verification submitted successfully'),
+              backgroundColor: Color(0xFF7000FF),
+            ),
+          );
+
+          // Close the dialog
+          Navigator.of(dialogContext).pop();
+        },
+      ),
     );
   }
 }

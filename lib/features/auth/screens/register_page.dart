@@ -168,6 +168,7 @@ class _RegisterPageState extends State<RegisterPage> {
         'createdAt': FieldValue.serverTimestamp(),
         'lastUsernameChange': FieldValue.serverTimestamp(),
         'isAdmin': false,
+        'isSuperAdmin': false,
         'isBanned': false,
         'emailVerified': false,
         'banHistory': [],

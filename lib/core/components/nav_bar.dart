@@ -8,6 +8,7 @@ import 'package:capstone/features/verification/screens/ticket_approvals_page.dar
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone/core/services/firebase_service.dart';
+import 'package:flutter/services.dart';
 
 class NavBar extends StatelessWidget {
   final FirebaseService _firebaseService = FirebaseService();
@@ -43,6 +44,67 @@ class NavBar extends StatelessWidget {
         );
       }
     });
+  }
+
+  // Method to show contact dialog
+  void _showContactDialog(BuildContext context) {
+    final String contactEmail = 'ninevehgroupp@gmail.com';
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2E0F60),
+          title: const Text(
+            'Contact Us',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'To apply for admin or for other inquiries, email us at:',
+                style: TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                contactEmail,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: contactEmail));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Email copied to clipboard'),
+                    backgroundColor: Color(0xFF7000FF),
+                  ),
+                );
+              },
+              child: const Text(
+                'Copy Email',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text(
+                'Close',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -123,8 +185,7 @@ class NavBar extends StatelessWidget {
               ),
             ),
             StreamBuilder<bool>(
-              stream:
-                  _firebaseService.hasUnreadMessages(),
+              stream: _firebaseService.hasUnreadMessages(),
               builder: (context, snapshot) {
                 return _buildNavItem(
                   icon: Icons.mail,
@@ -170,6 +231,19 @@ class NavBar extends StatelessWidget {
               },
             ),
             const Spacer(),
+            StreamBuilder<bool>(
+              stream: _firebaseService.userStream(),
+              builder: (context, snapshot) {
+                if (snapshot.hasData && snapshot.data == true) {
+                  return _buildNavItem(
+                    icon: Icons.contact_support,
+                    title: 'Contact Us',
+                    onTap: () => _showContactDialog(context),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
             _buildNavItem(
               icon: Icons.logout_outlined,
               title: 'Log Out',

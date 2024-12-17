@@ -105,6 +105,13 @@ class _UsersPageState extends State<UsersPage> {
                 fontSize: 22,
                 fontWeight: FontWeight.bold),
           ),
+          Text(
+            '(Only Super Admins Can\nDemote/Promote Users)',
+            style: TextStyle(
+                color: Colors.white54,
+                fontSize: 13,
+                fontWeight: FontWeight.normal),
+          ),
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(

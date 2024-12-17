@@ -198,6 +198,18 @@ class FirebaseService {
         .map((snapshot) => snapshot.data()?['isAdmin'] == true);
   }
 
+  // Stream for normal user status
+  Stream<bool> userStream() {
+    User? user = _auth.currentUser;
+    if (user == null) return Stream.value(false);
+
+    return _firestore
+        .collection('users')
+        .doc(user.uid)
+        .snapshots()
+        .map((snapshot) => snapshot.data()?['isAdmin'] == false);
+  }
+
   // Deletes user account
   Future<void> deleteUserAccount(String password) async {
     User? user = currentUser;
@@ -801,8 +813,8 @@ class FirebaseService {
         .where('status', isEqualTo: CarpoolStatus.active.toString())
         .get();
 
-    if (existingCarpools.docs.isNotEmpty) {
-      throw Exception('You already have an active carpool');
+    if (existingCarpools.docs.length >= 3) {
+      throw Exception('You already have 3 active carpools');
     }
 
     try {
