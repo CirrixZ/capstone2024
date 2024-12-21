@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-class ArtistDialog {
-  static void showArtistDialog(
+class MusicDialog {
+  static void showMusicDialog(
     BuildContext context, {
-    required String artistName,
-    required String artistDetails,
+    required String concertName,
+    required List<String> concertMusic,
   }) {
     showDialog(
       context: context,
@@ -31,7 +31,7 @@ class ArtistDialog {
                       Align(
                         alignment: Alignment.topLeft,
                         child: Text(
-                          'About $artistName:',
+                          'Set List for $concertName:',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 18,
@@ -40,21 +40,27 @@ class ArtistDialog {
                         ),
                       ),
                       SizedBox(height: 16),
-                      Text(
-                        artistDetails,
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
-                        textAlign: TextAlign.justify,
+                      ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: concertMusic.length,
+                        itemBuilder: (context, index) {
+                          return Padding(
+                            padding: EdgeInsets.symmetric(vertical: 4),
+                            child: Text(
+                              '${index + 1}. ${concertMusic[index]}',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                       SizedBox(height: 20),
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                          },
+                          onPressed: () => Navigator.of(context).pop(),
                           child: Text(
                             'Close',
                             style: TextStyle(

@@ -1,7 +1,7 @@
 import 'dart:io';
+import 'package:capstone/core/components/custom_dialog.dart';
 import 'package:capstone/core/components/image_picker_utils.dart';
 import 'package:capstone/core/constants/colors.dart';
-import 'package:capstone/features/auth/screens/email_update_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone/core/components/my_textfield.dart';
@@ -37,6 +37,10 @@ class ProfilePageState extends State<ProfilePage> {
 
   Future<void> _loadUserProfile() async {
     try {
+      // Reloads the user to get latest verification status
+      await FirebaseAuth.instance.currentUser?.reload();
+
+      // Gets the profile details of the user
       Map<String, dynamic> userProfile =
           await _firebaseService.getUserProfile();
 
@@ -129,6 +133,154 @@ class ProfilePageState extends State<ProfilePage> {
         _usernameErrorText = null;
       });
     }
+  }
+
+  // Email change dialog
+  void _showChangeEmailDialog() {
+    final newEmailController = TextEditingController();
+    final passwordController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => CustomDialog(
+        title: 'Change Email',
+        fields: [
+          CustomDialogField(
+            label: 'New Email',
+            hint: 'Enter your new email address',
+            keyboardType: TextInputType.emailAddress,
+            controller: newEmailController,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Email is required';
+              }
+              if (!value.contains('@') || !value.contains('.')) {
+                return 'Please enter a valid email address';
+              }
+              if (value == FirebaseAuth.instance.currentUser?.email) {
+                return 'New email must be different from current email';
+              }
+              return null;
+            },
+          ),
+          CustomDialogField(
+            label: 'Current Password',
+            hint: 'Enter your current password',
+            controller: passwordController,
+            obscureText: true,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Password is required';
+              }
+              return null;
+            },
+          ),
+        ],
+        submitButtonText: 'Update Email',
+        onSubmit: (values, _) async {
+          await _firebaseService.updateEmail(
+            values['New Email']!,
+            values['Current Password']!,
+          );
+
+          if (context.mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Verification email sent! Please verify your new email address and reopen this page to see changes.',
+                ),
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  // Delete account dialog
+  void _showDeleteAccountDialog() {
+    final passwordController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return CustomDialog(
+          title: 'Delete Account',
+          fields: [
+            CustomDialogField(
+              label: 'Password',
+              hint: 'Enter your password to confirm',
+              controller: passwordController,
+              obscureText: true,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Password is required';
+                }
+                return null;
+              },
+            ),
+          ],
+          submitButtonText: 'Delete Account',
+          customWidget: const Padding(
+            padding: EdgeInsets.only(bottom: 16),
+            child: Text(
+              'This action cannot be undone. All your data will be permanently deleted.',
+              style: TextStyle(
+                color: Colors.red,
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          onSubmit: (values, _) async {
+            try {
+              // Show confirmation dialog
+              bool? confirmDelete = await showDialog<bool>(
+                context: context,
+                barrierDismissible: false,
+                builder: (dialogContext) => AlertDialog(
+                  title: const Text(
+                    'Confirm Delete',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  backgroundColor: Color(0xFF2F1552),
+                  content: const Text(
+                    'Are you sure you want to delete your account? This action cannot be undone.',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(true),
+                      child: const Text(
+                        'Delete',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirmDelete == true) {
+                // Delete the account
+                await _firebaseService.deleteUserAccount(values['Password']!);
+
+                // Close the delete account dialog
+                if (context.mounted) {
+                  Navigator.of(context).pop();
+                }
+              }
+            } catch (e) {
+              return Future.error(e.toString());
+            }
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -248,8 +400,8 @@ class ProfilePageState extends State<ProfilePage> {
                                   if (mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content:
-                                            Text('Verification email sent!'),
+                                        content: Text(
+                                            'Verification email sent! Please reopen this page after you verify your account to see changes.'),
                                       ),
                                     );
                                   }
@@ -274,98 +426,19 @@ class ProfilePageState extends State<ProfilePage> {
                     return const SizedBox.shrink();
                   },
                 ),
-                StreamBuilder<User?>(
-                  stream: FirebaseAuth.instance.authStateChanges(),
-                  builder: (context, snapshot) {
-                    final isVerified = snapshot.hasData &&
-                        snapshot.data != null;
-                    return TextButton.icon(
-                      icon: const Icon(Icons.email, color: Colors.white70),
-                      label: const Text('Change Email',
-                          style: TextStyle(color: Colors.white70)),
-                      onPressed: isVerified
-                          ? () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const EmailUpdatePage(),
-                                ),
-                              )
-                          : null,
-                      style: TextButton.styleFrom(
-                        disabledIconColor: Colors.white30,
-                        disabledForegroundColor: Colors.white30,
-                      ),
-                    );
-                  },
+                TextButton.icon(
+                  icon: const Icon(Icons.email, color: Colors.white70),
+                  label: const Text('Change Email',
+                      style: TextStyle(color: Colors.white70)),
+                  onPressed: _showChangeEmailDialog,
                 ),
-                const SizedBox(width: 16),
                 TextButton.icon(
                   icon: const Icon(Icons.delete_forever, color: Colors.red),
                   label: const Text(
                     'Delete Account',
                     style: TextStyle(color: Colors.red),
                   ),
-                  onPressed: () {
-                    final passwordController = TextEditingController();
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        backgroundColor: const Color(0xFF2F1552),
-                        title: const Text(
-                          'Delete Account',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                        content: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text(
-                              'Enter your password to confirm account deletion. This action cannot be undone.',
-                              style: TextStyle(color: Colors.white70),
-                            ),
-                            const SizedBox(height: 16),
-                            MyTextField(
-                              controller: passwordController,
-                              hintText: 'Password',
-                              obscureText: true,
-                            ),
-                          ],
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text(
-                              'Cancel',
-                              style: TextStyle(color: Colors.white70),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () async {
-                              try {
-                                await _firebaseService
-                                    .deleteUserAccount(passwordController.text);
-                                if (mounted) {
-                                  Navigator.of(context).pushNamedAndRemoveUntil(
-                                    '/',
-                                    (route) => false,
-                                  );
-                                }
-                              } catch (e) {
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(e.toString())),
-                                  );
-                                }
-                              }
-                            },
-                            child: const Text(
-                              'Delete',
-                              style: TextStyle(color: Colors.red),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                  onPressed: _showDeleteAccountDialog,
                 ),
                 SizedBox(
                   width: 170,

@@ -8,6 +8,8 @@ class CustomDialogField {
   final TextInputType keyboardType;
   final String? Function(String?)? validator;
   final TextEditingController controller;
+  final bool obscureText;
+  final String? errorText;
 
   CustomDialogField({
     required this.label,
@@ -15,6 +17,8 @@ class CustomDialogField {
     this.keyboardType = TextInputType.text,
     this.validator,
     required this.controller,
+    this.obscureText = false,
+    this.errorText,
   });
 }
 
@@ -115,11 +119,13 @@ class _CustomDialogState extends State<CustomDialog> {
                       child: TextFormField(
                         controller: field.controller,
                         keyboardType: field.keyboardType,
+                        obscureText: field.obscureText,
                         style: const TextStyle(color: Colors.white),
                         validator: field.validator,
                         decoration: InputDecoration(
                           labelText: field.label,
                           hintText: field.hint,
+                          errorText: field.errorText,
                           labelStyle: const TextStyle(color: Colors.white70),
                           hintStyle: const TextStyle(color: Colors.white60),
                           fillColor: const Color(0xFF180B2D),

@@ -66,6 +66,7 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
+      // Sign in user
       if (_isAdminLogin) {
         await _firebaseService.signInAdmin(
           emailController.text,
@@ -78,8 +79,12 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
 
+      // Only proceed if still mounted after sign in
+      if (!mounted) return;
+
+      // Handle remember me and session
       await _sessionManager.setRememberMe(_rememberMe, emailController.text);
-      if (_rememberMe) {
+      if (_rememberMe && FirebaseAuth.instance.currentUser != null) {
         await _sessionManager.createSession(
           FirebaseAuth.instance.currentUser!,
           rememberMe: true,
@@ -87,17 +92,26 @@ class _LoginPageState extends State<LoginPage> {
       }
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_getErrorMessage(e.code)),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_getErrorMessage(e.code)),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('An unexpected error occurred'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -174,7 +188,7 @@ class _LoginPageState extends State<LoginPage> {
                         width: 300,
                         child: const Text(
                           "Unite with Music Lovers! Elevate your concert experience with our app’s interactive community, carpool listings, and seamless integrated ticket markets.",
-                          textAlign: TextAlign. center,
+                          textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.white70, // Smaller text color
                             fontSize: 12, // Smaller font size
@@ -244,8 +258,9 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           )
                         : AuthButton(
-                            text:
-                                _isAdminLogin ? "Admin Sign In" : "User Sign In",
+                            text: _isAdminLogin
+                                ? "Admin Sign In"
+                                : "User Sign In",
                             onTap: signUserIn,
                           ),
                     const SizedBox(height: 8),
@@ -266,7 +281,7 @@ class _LoginPageState extends State<LoginPage> {
                         style: const TextStyle(color: Colors.white),
                       ),
                     ),
-              
+
                     if (!_isAdminLogin) ...[
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,

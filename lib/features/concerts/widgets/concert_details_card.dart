@@ -1,6 +1,7 @@
 import 'package:capstone/core/constants/colors.dart';
 import 'package:capstone/features/analytics/screens/analytics.dart';
 import 'package:capstone/features/concerts/models/concert_model.dart';
+import 'package:capstone/features/concerts/widgets/music_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone/features/concerts/widgets/artist_dialog.dart';
 import 'package:intl/intl.dart';
@@ -150,25 +151,36 @@ class ConcertDetailsCard extends StatelessWidget {
   Widget _buildBottomActions(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10.0),
-      child: Row(
+      child: Column(
         children: [
-          _buildArtistButton(context),
+          Row(
+            children: [
+              _buildArtistButton(context),
+              SizedBox(width: 16),
+              _buildMusicButton(context),
+            ],
+          ),
           if (isAdmin) ...[
-            const SizedBox(width: 16),
-            GestureDetector(
-              // Changed from TextButton to GestureDetector
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => AnalyticsPage(concertId: concertId)),
-              ),
-              child: const Text(
-                'Analytics',
-                style: TextStyle(
-                  color: Colors.white,
-                  decoration: TextDecoration.underline,
-                  decorationColor: Colors.white,
-                  fontSize: 14,
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.only(left: 12.0),
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => AnalyticsPage(concertId: concertId)),
+                  ),
+                  child: const Text(
+                    'Analytics',
+                    style: TextStyle(
+                      color: Colors.white,
+                      decoration: TextDecoration.underline,
+                      decorationColor: Colors.white,
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -193,6 +205,26 @@ class ConcertDetailsCard extends StatelessWidget {
       ),
       child: Text(
         'Artist',
+        style: TextStyle(color: Colors.white, fontSize: 14),
+      ),
+    );
+  }
+
+  Widget _buildMusicButton(BuildContext context) {
+    return OutlinedButton(
+      onPressed: () => MusicDialog.showMusicDialog(
+        context,
+        concertName: concert.concertName,
+        concertMusic: concert.concertMusic,
+      ),
+      style: OutlinedButton.styleFrom(
+        side: BorderSide(color: Color(0xFF592D6D), width: 3.0),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      child: Text(
+        'Setlist',
         style: TextStyle(color: Colors.white, fontSize: 14),
       ),
     );

@@ -17,6 +17,8 @@ class ConcertList extends StatefulWidget {
 
 class ConcertListState extends State<ConcertList> {
   final FirebaseService _firebaseService = FirebaseService();
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
   String _userName = '';
 
   @override
@@ -28,6 +30,12 @@ class ConcertListState extends State<ConcertList> {
       }
     });
     _loadUserName();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadUserName() async {
@@ -79,7 +87,36 @@ class ConcertListState extends State<ConcertList> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
+              // Add search field
+              TextField(
+                controller: _searchController,
+                style: const TextStyle(color: Colors.white),
+                onChanged: (value) {
+                  setState(() => _searchQuery = value);
+                },
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: const Color(0xFF2F1552),
+                  hintText: 'Search concerts...',
+                  hintStyle: const TextStyle(color: Colors.white30),
+                  prefixIcon: const Icon(Icons.search, color: Colors.white),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(30),
+                    borderSide: BorderSide.none,
+                  ),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: Colors.white54),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _searchQuery = '');
+                          },
+                        )
+                      : null,
+                ),
+              ),
+              const SizedBox(height: 16),
               Expanded(
                 child: StreamBuilder<List<Concert>>(
                   stream: _firebaseService.getConcerts(),
@@ -94,10 +131,26 @@ class ConcertListState extends State<ConcertList> {
                       return const Center(
                           child: Text('No concerts available.'));
                     }
+
+                    // Filter concerts based on search query
+                    final filteredConcerts = _searchQuery.isEmpty
+                        ? snapshot.data!
+                        : _firebaseService.filterConcerts(
+                            snapshot.data!, _searchQuery);
+
+                    if (filteredConcerts.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'No concerts match your search',
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                      );
+                    }
+
                     return ListView.builder(
-                      itemCount: snapshot.data!.length,
+                      itemCount: filteredConcerts.length,
                       itemBuilder: (context, index) {
-                        Concert concert = snapshot.data![index];
+                        Concert concert = filteredConcerts[index];
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 16.0),
                           child: ConcertCard(

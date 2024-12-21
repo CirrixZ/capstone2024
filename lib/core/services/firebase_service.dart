@@ -210,25 +210,28 @@ class FirebaseService {
         .map((snapshot) => snapshot.data()?['isAdmin'] == false);
   }
 
-  // Deletes user account
   Future<void> deleteUserAccount(String password) async {
     User? user = currentUser;
     if (user == null) throw Exception('No user found');
 
     try {
-      // Re-authenticate user first
+      // Reauthenticate first
       AuthCredential credential = EmailAuthProvider.credential(
         email: user.email!,
         password: password,
       );
       await user.reauthenticateWithCredential(credential);
 
-      // If re-authentication successful, delete account
+      // Delete Firestore document first
       await _users.doc(user.uid).delete();
+
+      // Delete the user account
       await user.delete();
-      await signOut();
     } catch (e) {
-      throw Exception('Failed to delete account: ${e.toString()}');
+      if (e.toString().contains('wrong-password')) {
+        throw Exception('Incorrect Password');
+      }
+      throw Exception('\nError deleting account: Incorrect Password');
     }
   }
 
@@ -253,6 +256,16 @@ class FirebaseService {
     });
   }
 
+  // Used to search for concerts
+  List<Concert> filterConcerts(List<Concert> concerts, String query) {
+    final searchLower = query.toLowerCase();
+    return concerts.where((concert) {
+      return concert.artistName.toLowerCase().contains(searchLower) ||
+          concert.concertName.toLowerCase().contains(searchLower) ||
+          concert.location.toLowerCase().contains(searchLower);
+    }).toList();
+  }
+
   // Creates new concert with all needed details
   Future<void> createConcert({
     required String imageUrl,
@@ -262,6 +275,7 @@ class FirebaseService {
     required List<String> dates,
     required String location,
     required String artistDetails,
+    required List<String> concertMusic,
   }) async {
     try {
       DocumentReference concertRef =
@@ -274,6 +288,7 @@ class FirebaseService {
         'location': location,
         'artistDetails': artistDetails,
         'createdAt': FieldValue.serverTimestamp(),
+        'concertMusic': concertMusic,
       });
 
       // Create subcollections
@@ -299,7 +314,6 @@ class FirebaseService {
   // Updates specific concert details
   Future<void> updateConcertDetails(
     String concertId, {
-    // Made concertId a required parameter
     String? imageUrl,
     String? artistName,
     String? concertName,
@@ -308,6 +322,7 @@ class FirebaseService {
     DateTime? mainDate,
     List<String>? dates,
     String? location,
+    List<String>? concertMusic,
   }) async {
     if (!await isUserAdmin()) {
       throw Exception('Unauthorized: Admin access required');
@@ -323,6 +338,7 @@ class FirebaseService {
       if (mainDate != null) updates['date'] = Timestamp.fromDate(mainDate);
       if (dates != null) updates['dates'] = dates;
       if (location != null) updates['location'] = location;
+      if (concertMusic != null) updates['concertMusic'] = concertMusic;
 
       if (updates.isEmpty) return;
 
@@ -860,6 +876,59 @@ class FirebaseService {
     } catch (e) {
       throw Exception('Failed to create carpool');
     }
+  }
+
+  // Method to update fee and slots of carpool
+  Future<void> updateCarpoolDetails(
+    String chatRoomId,
+    String concertId,
+    int newFee,
+    int newSlots,
+  ) async {
+    User? user = currentUser;
+    if (user == null) throw Exception('Not signed in');
+
+    final carpoolQuery = await _firestore
+        .collection('concerts')
+        .doc(concertId)
+        .collection('carpools')
+        .where('chatRoomId', isEqualTo: chatRoomId)
+        .limit(1)
+        .get();
+
+    if (carpoolQuery.docs.isEmpty) {
+      throw Exception('Carpool not found');
+    }
+
+    final carpoolDoc = carpoolQuery.docs.first;
+
+    // Check if user is the owner
+    if (carpoolDoc.get('driverId') != user.uid) {
+      throw Exception('Only the carpool owner can edit details');
+    }
+
+    // Get current passengers count
+    final List<String> passengers =
+        List<String>.from(carpoolDoc.get('passengers') ?? []);
+
+    // Check if new slots is less than current members
+    if (newSlots < passengers.length) {
+      throw Exception('Cannot set slots lower than current member count');
+    }
+
+    // Check if fee is more than 3000
+    if (newFee > 3000) {
+      throw Exception('Cannot set fee higher than 3000');
+    }
+
+    // Calculate new available slots
+    final int newAvailableSlots = newSlots - passengers.length;
+
+    await carpoolDoc.reference.update({
+      'fee': newFee.toString(),
+      'slot': newSlots.toString(),
+      'availableSlots': newAvailableSlots,
+    });
   }
 
   // Checks if user is in any carpool
@@ -2775,7 +2844,7 @@ class FirebaseService {
       // Send verification to new email
       await user.verifyBeforeUpdateEmail(newEmail);
     } catch (e) {
-      throw Exception('Failed to update email: ${e.toString()}');
+      throw Exception('\nFailed to update email: Wrong Password');
     }
   }
 

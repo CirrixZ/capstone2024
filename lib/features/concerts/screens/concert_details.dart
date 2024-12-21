@@ -43,6 +43,15 @@ class ConcertDetailsPage extends StatelessWidget {
           ),
         ),
         SpeedDialChild(
+          child: const Icon(Icons.queue_music),
+          label: 'Edit Set List',
+          onTap: () => _dialogHelpers.showSetlistEditDialog(
+            context,
+            concertId,
+            concert,
+          ),
+        ),
+        SpeedDialChild(
           child: const Icon(Icons.calendar_today),
           label: 'Edit Dates',
           onTap: () => _dialogHelpers.showDatesEditDialog(

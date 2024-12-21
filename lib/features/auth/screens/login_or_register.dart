@@ -24,7 +24,7 @@ class _LoginOrRegisterPageState extends State<LoginOrRegisterPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[300],
+      backgroundColor: Colors.grey,
       extendBodyBehindAppBar: true,  // This allows content to go behind the AppBar
       appBar: AppBar(
         backgroundColor: Colors.transparent,

@@ -7,6 +7,7 @@ class Concert {
   final List<String> dates;
   final String location;
   final String artistDetails;
+  final List<String> concertMusic;
 
   Concert({
     required this.id,
@@ -17,6 +18,7 @@ class Concert {
     required this.dates,
     required this.location,
     required this.artistDetails,
+    required this.concertMusic,
   });
 
   factory Concert.fromMap(Map<String, dynamic> map, String id) {
@@ -39,6 +41,15 @@ class Concert {
       return [];
     }
 
+    List<String> parseMusic(dynamic musicData) {
+      if (musicData is List) {
+        return musicData.map((song) => song.toString()).toList();
+      } else if (musicData is String) {
+        return [musicData];
+      }
+      return [];
+    }
+
     return Concert(
       id: id,
       imageUrl: map['imageUrl'] ?? '',
@@ -48,6 +59,7 @@ class Concert {
       dates: parseDates(map['dates']),
       location: map['location'] ?? '',
       artistDetails: map['artistDetails'] ?? '',
+      concertMusic: parseMusic(map['concertMusic']),
     );
   }
 
@@ -60,6 +72,7 @@ class Concert {
       'dates': dates,
       'location': location,
       'artistDetails': artistDetails,
+      'concertMusic': concertMusic,
     };
   }
 }

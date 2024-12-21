@@ -56,6 +56,33 @@ class CarpoolCard extends StatelessWidget {
     );
   }
 
+  Widget _buildAgreementPoint(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '• ',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<bool>(
@@ -190,7 +217,8 @@ class CarpoolCard extends StatelessWidget {
                                 children: [
                                   _buildInfoRow(
                                       Icons.location_on,
-                                      carpool.meetupLocation.startsWith('Starting')
+                                      carpool.meetupLocation
+                                              .startsWith('Starting')
                                           ? carpool.meetupLocation
                                           : carpool.meetupLocation),
                                   _buildInfoRow(Icons.people, carpool.slot),
@@ -225,48 +253,148 @@ class CarpoolCard extends StatelessWidget {
                                         .contains(
                                             _firebaseService.currentUser?.uid);
 
-                                    // Allow access if owner, passenger, or if slots are available
-                                    if (isOwner ||
-                                        isPassenger ||
-                                        carpool.availableSlots > 0) {
-                                      try {
-                                        // Only try to join if not owner and not already a passenger
-                                        if (!isOwner && !isPassenger) {
-                                          await _firebaseService.joinCarpool(
-                                              carpool.chatRoomId, concertId);
-                                        }
-                                        onJoin();
-                                      } catch (e) {
-                                        showDialog(
-                                          context: context,
-                                          builder: (context) => AlertDialog(
+                                    // If owner or existing passenger, directly proceed
+                                    if (isOwner || isPassenger) {
+                                      onJoin();
+                                      return;
+                                    }
+
+                                    // For new passengers, check slots and show agreement
+                                    if (carpool.availableSlots > 0) {
+                                      // Show terms and agreement dialog
+                                      bool? agreed = await showDialog<bool>(
+                                        context: context,
+                                        builder: (BuildContext context) {
+                                          return AlertDialog(
                                             backgroundColor:
                                                 const Color(0xFF2F1552),
-                                            title: const Text(
-                                              'Unable to Join',
-                                              style: TextStyle(
-                                                  color: Colors.white),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(15),
                                             ),
-                                            content: const Text(
-                                              'Failed to join the carpool. If you are in an existing one, please leave first.',
+                                            title: const Text(
+                                              'Carpool Terms & Agreement',
                                               style: TextStyle(
-                                                  color: Colors.white70),
+                                                color: Colors.white,
+                                                fontSize: 20,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            content: SingleChildScrollView(
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  const Text(
+                                                    'By joining this carpool, you agree to:',
+                                                    style: TextStyle(
+                                                      color: Colors.white70,
+                                                      fontSize: 16,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 16),
+                                                  _buildAgreementPoint(
+                                                      'Be punctual and arrive at the designated meeting point on time.'),
+                                                  _buildAgreementPoint(
+                                                      'Share the agreed-upon fee fairly with the driver.'),
+                                                  _buildAgreementPoint(
+                                                      'Respect other passengers and maintain appropriate behavior.'),
+                                                  _buildAgreementPoint(
+                                                      'Follow the driver\'s reasonable requests and vehicle rules.'),
+                                                  _buildAgreementPoint(
+                                                      'Communicate any changes or cancellations at least 24 hours in advance.'),
+                                                  const SizedBox(height: 16),
+                                                  const Text(
+                                                    'Note: Violation of these terms may result in removal from the carpool.',
+                                                    style: TextStyle(
+                                                      color: Colors.white70,
+                                                      fontStyle:
+                                                          FontStyle.italic,
+                                                      fontSize: 14,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
                                             ),
                                             actions: [
                                               TextButton(
                                                 onPressed: () =>
-                                                    Navigator.of(context).pop(),
+                                                    Navigator.of(context)
+                                                        .pop(false),
                                                 child: const Text(
-                                                  'OK',
+                                                  'Decline',
                                                   style: TextStyle(
-                                                      color: Colors.white),
+                                                    color: Colors.white70,
+                                                  ),
+                                                ),
+                                              ),
+                                              TextButton(
+                                                style: TextButton.styleFrom(
+                                                  backgroundColor:
+                                                      AppColors.buttonColor,
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            8),
+                                                  ),
+                                                ),
+                                                onPressed: () =>
+                                                    Navigator.of(context)
+                                                        .pop(true),
+                                                child: const Text(
+                                                  'I Agree',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
                                                 ),
                                               ),
                                             ],
-                                          ),
-                                        );
+                                          );
+                                        },
+                                      );
+
+                                      if (agreed == true) {
+                                        try {
+                                          await _firebaseService.joinCarpool(
+                                              carpool.chatRoomId, concertId);
+                                          onJoin();
+                                        } catch (e) {
+                                          if (context.mounted) {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) => AlertDialog(
+                                                backgroundColor:
+                                                    const Color(0xFF2F1552),
+                                                title: const Text(
+                                                  'Unable to Join',
+                                                  style: TextStyle(
+                                                      color: Colors.white),
+                                                ),
+                                                content: const Text(
+                                                  'Failed to join the carpool. If you are in an existing one, please leave first.',
+                                                  style: TextStyle(
+                                                      color: Colors.white70),
+                                                ),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () =>
+                                                        Navigator.of(context)
+                                                            .pop(),
+                                                    child: const Text(
+                                                      'OK',
+                                                      style: TextStyle(
+                                                          color: Colors.white),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          }
+                                        }
                                       }
-                                    } else { // If users somehow still see the card even if its full
+                                    } else {
                                       showDialog(
                                         context: context,
                                         builder: (context) => AlertDialog(

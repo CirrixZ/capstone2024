@@ -15,35 +15,37 @@ class AddConcertScreen extends StatefulWidget {
 class AddConcertScreenState extends State<AddConcertScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   final _formKey = GlobalKey<FormState>();
-  
+
   File? _selectedImage;
   final TextEditingController _artistNameController = TextEditingController();
   final TextEditingController _concertNameController = TextEditingController();
   final TextEditingController _locationController = TextEditingController();
-  final TextEditingController _artistDetailsController = TextEditingController();
-  
+  final TextEditingController _artistDetailsController =
+      TextEditingController();
+
   DateTime? _selectedDate;
   final List<String> _dates = [];
   final List<String> _description = [];
+  final List<String> _concertMusic = [];
   bool _isLoading = false;
   String? _error;
 
   Future<void> _pickImage() async {
-  final File? image = await ImagePickerUtil.pickAndCropImage(context);
-  if (image != null) {
-    setState(() {
-      _selectedImage = image;
-    });
+    final File? image = await ImagePickerUtil.pickAndCropImage(context);
+    if (image != null) {
+      setState(() {
+        _selectedImage = image;
+      });
+    }
   }
-}
 
   Future<String> _uploadImage() async {
     if (_selectedImage == null) throw Exception('No image selected');
-    
+
     final ref = FirebaseStorage.instance
         .ref()
         .child('concert_images/${DateTime.now().millisecondsSinceEpoch}.jpg');
-    
+
     await ref.putFile(_selectedImage!);
     return await ref.getDownloadURL();
   }
@@ -64,7 +66,8 @@ class AddConcertScreenState extends State<AddConcertScreen> {
         final controller = TextEditingController();
         return AlertDialog(
           backgroundColor: const Color(0xFF2F1552),
-          title: Text('Add Description Paragraph', style: TextStyle(color: Colors.white)),
+          title: Text('Add Description Paragraph',
+              style: TextStyle(color: Colors.white)),
           content: TextField(
             controller: controller,
             style: TextStyle(color: Colors.white),
@@ -84,6 +87,45 @@ class AddConcertScreenState extends State<AddConcertScreen> {
                 if (controller.text.isNotEmpty) {
                   setState(() {
                     _description.add(controller.text);
+                  });
+                  Navigator.pop(context);
+                }
+              },
+              child: Text('Add', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _addMusic() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final controller = TextEditingController();
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2F1552),
+          title: Text('Add Song to Set List',
+              style: TextStyle(color: Colors.white)),
+          content: TextField(
+            controller: controller,
+            style: TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'Enter song name',
+              hintStyle: TextStyle(color: Colors.white60),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel', style: TextStyle(color: Colors.white70)),
+            ),
+            TextButton(
+              onPressed: () {
+                if (controller.text.isNotEmpty) {
+                  setState(() {
+                    _concertMusic.add(controller.text);
                   });
                   Navigator.pop(context);
                 }
@@ -118,7 +160,7 @@ class AddConcertScreenState extends State<AddConcertScreen> {
 
     try {
       final imageUrl = await _uploadImage();
-      
+
       await _firebaseService.createConcert(
         imageUrl: imageUrl,
         artistName: _artistNameController.text,
@@ -127,9 +169,10 @@ class AddConcertScreenState extends State<AddConcertScreen> {
         dates: _dates,
         location: _locationController.text,
         artistDetails: _artistDetailsController.text,
+        concertMusic: _concertMusic,
       );
       if (mounted) {
-      Navigator.pop(context);
+        Navigator.pop(context);
       }
     } catch (e) {
       setState(() {
@@ -155,21 +198,19 @@ class AddConcertScreenState extends State<AddConcertScreen> {
             children: [
               Center(
                 child: const Text(
-                    'Add New Concert',
-                    style: TextStyle(
-                        color: AppColors.textWhite,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold),
-                  ),
+                  'Add New Concert',
+                  style: TextStyle(
+                      color: AppColors.textWhite,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold),
+                ),
               ),
-                SizedBox(height: 16),
-                const Text(
-                    'Choose Concert Banner:',
-                    style: TextStyle(
-                        color: AppColors.textWhite
-                        ),
-                  ),
-                  SizedBox(height: 8),
+              SizedBox(height: 16),
+              const Text(
+                'Choose Concert Banner:',
+                style: TextStyle(color: AppColors.textWhite),
+              ),
+              SizedBox(height: 8),
               // Image picker
               GestureDetector(
                 onTap: _pickImage,
@@ -195,14 +236,40 @@ class AddConcertScreenState extends State<AddConcertScreen> {
               _buildTextField(_artistDetailsController, 'Artist Details',
                   maxLines: 3),
 
+              // Music section
+              SizedBox(height: 16),
+              Row(
+                children: [
+                  Text('Set List', style: TextStyle(color: Colors.white)),
+                  IconButton(
+                    icon: Icon(Icons.add),
+                    onPressed: _addMusic,
+                  ),
+                ],
+              ),
+              ..._concertMusic.map((song) => Card(
+                    child: ListTile(
+                      title: Text(song),
+                      trailing: IconButton(
+                        icon: Icon(Icons.delete),
+                        onPressed: () {
+                          setState(() => _concertMusic.remove(song));
+                        },
+                      ),
+                    ),
+                  )),
+
               // Dates section
               SizedBox(height: 16),
               Text('Concert Dates', style: TextStyle(color: Colors.white)),
               Row(
                 children: [
                   Expanded(
-                    child: Text(_selectedDate?.toString().split(' ')[0] ??
-                        'No date selected', style: TextStyle(color: AppColors.textWhite54),),
+                    child: Text(
+                      _selectedDate?.toString().split(' ')[0] ??
+                          'No date selected',
+                      style: TextStyle(color: AppColors.textWhite54),
+                    ),
                   ),
                   TextButton(
                     onPressed: () async {
@@ -277,7 +344,8 @@ class AddConcertScreenState extends State<AddConcertScreen> {
                 ),
                 child: _isLoading
                     ? CircularProgressIndicator()
-                    : Text('Create Concert', style: TextStyle(color: AppColors.textWhite)),
+                    : Text('Create Concert',
+                        style: TextStyle(color: AppColors.textWhite)),
               ),
             ],
           ),

@@ -1,3 +1,4 @@
+import 'package:capstone/core/components/custom_dialog.dart';
 import 'package:capstone/features/carpooling/widgets/rating_dialog.dart';
 import 'package:capstone/features/users/models/user_model.dart';
 import 'package:flutter/material.dart';
@@ -24,6 +25,76 @@ class CarpoolInfoPage extends StatefulWidget {
 class _CarpoolInfoPageState extends State<CarpoolInfoPage> {
   final FirebaseService _firebaseService = FirebaseService();
   bool _isLoading = false;
+
+  void _showEditDialog(Map<String, dynamic> carpoolData) {
+    final feeController = TextEditingController(text: carpoolData['fee']);
+    final slotsController = TextEditingController(text: carpoolData['slot']);
+    final currentPassengers =
+        (carpoolData['passengers'] as List<dynamic>?)?.length ?? 0;
+
+    showDialog(
+      context: context,
+      builder: (context) => CustomDialog(
+        title: 'Edit Carpool Details',
+        fields: [
+          CustomDialogField(
+            label: 'Fee',
+            hint: 'Enter fee amount',
+            keyboardType: TextInputType.number,
+            controller: feeController,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Fee is required';
+              }
+              final fee = int.tryParse(value);
+              if (fee == null) {
+                return 'Please enter a valid number';
+              }
+              if (fee > 3000) {
+                return 'Fee cannot be higher than 3000';
+              }
+              return null;
+            },
+          ),
+          CustomDialogField(
+            label: 'Total Slots',
+            hint: 'Enter total slots',
+            keyboardType: TextInputType.number,
+            controller: slotsController,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Total slots is required';
+              }
+              final slots = int.tryParse(value);
+              if (slots == null) {
+                return 'Please enter a valid number';
+              }
+              if (slots < currentPassengers) {
+                return 'Cannot set slots lower than current member count ($currentPassengers)';
+              }
+              return null;
+            },
+          ),
+        ],
+        submitButtonText: 'Save',
+        customWidget: Text(
+          'Current passengers: $currentPassengers',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        onSubmit: (values, _) async {
+          final newFee = int.parse(values['Fee']!);
+          final newSlots = int.parse(values['Total Slots']!);
+
+          await _firebaseService.updateCarpoolDetails(
+            widget.chatRoomId,
+            widget.concertId,
+            newFee,
+            newSlots,
+          );
+        },
+      ),
+    );
+  }
 
   Future<void> _updateRsvp(String status) async {
     if (!mounted) return;
@@ -66,6 +137,24 @@ class _CarpoolInfoPageState extends State<CarpoolInfoPage> {
         iconTheme: const IconThemeData(color: Colors.white),
         backgroundColor: const Color(0xFF180B2D),
         actions: [
+          // Add edit button for driver
+          if (widget.isDriver)
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: () {
+                _firebaseService
+                    .getCarpoolInfo(
+                      widget.chatRoomId,
+                      widget.concertId,
+                    )
+                    .first
+                    .then((data) {
+                  if (data.isNotEmpty) {
+                    _showEditDialog(data);
+                  }
+                });
+              },
+            ),
           // Show delete button for driver
           if (widget.isDriver)
             IconButton(

@@ -154,12 +154,33 @@ class ConcertDialogHelpers {
               builder: (context, controllers, _) => Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  ...controllers.map((controller) => Padding(
+                  ...controllers.asMap().entries.map((entry) => Padding(
                         padding: const EdgeInsets.only(top: 8),
-                        child: DialogTextField(
-                          controller: controller,
-                          label: 'Description Paragraph',
-                          maxLines: 3,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: DialogTextField(
+                                controller: entry.value,
+                                label: 'Paragraph ${entry.key + 1}',
+                                maxLines: 3,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete,
+                                  color: AppColors.error),
+                              onPressed: () {
+                                final currentList =
+                                    List<TextEditingController>.from(
+                                        descriptionControllers.value);
+                                currentList.removeAt(entry.key);
+                                if (currentList.isEmpty) {
+                                  currentList.add(TextEditingController());
+                                }
+                                descriptionControllers.value = currentList;
+                              },
+                            ),
+                          ],
                         ),
                       )),
                 ],
@@ -180,11 +201,14 @@ class ConcertDialogHelpers {
         ),
       ),
       onConfirm: () async {
-        // Get all non-empty description texts
         final descriptions = descriptionControllers.value
             .map((c) => c.text.trim())
             .where((text) => text.isNotEmpty)
             .toList();
+
+        if (descriptions.isEmpty) {
+          throw Exception('Description cannot be empty');
+        }
 
         await _firebaseService.updateConcertDetails(
           concertId,
@@ -192,6 +216,93 @@ class ConcertDialogHelpers {
           concertName: controllers['concertName']!.text.trim(),
           artistDetails: controllers['artistDetails']!.text.trim(),
           description: descriptions,
+        );
+      },
+    );
+  }
+
+  Future<void> showSetlistEditDialog(
+    BuildContext context,
+    String concertId,
+    Concert concert,
+  ) async {
+    final setlistControllers = ValueNotifier<List<TextEditingController>>(
+      concert.concertMusic.isEmpty
+          ? [TextEditingController()]
+          : concert.concertMusic
+              .map((song) => TextEditingController(text: song))
+              .toList(),
+    );
+
+    await _showBaseDialog(
+      context: context,
+      title: 'Edit Set List',
+      content: StatefulBuilder(
+        builder: (context, setState) => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ValueListenableBuilder<List<TextEditingController>>(
+              valueListenable: setlistControllers,
+              builder: (context, controllers, _) => Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ...controllers.asMap().entries.map((entry) => Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: DialogTextField(
+                                controller: entry.value,
+                                label: 'Song ${entry.key + 1}',
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete,
+                                  color: AppColors.error),
+                              onPressed: () {
+                                final currentList =
+                                    List<TextEditingController>.from(
+                                        setlistControllers.value);
+                                currentList.removeAt(entry.key);
+                                if (currentList.isEmpty) {
+                                  currentList.add(TextEditingController());
+                                }
+                                setlistControllers.value = currentList;
+                              },
+                            ),
+                          ],
+                        ),
+                      )),
+                ],
+              ),
+            ),
+            TextButton.icon(
+              onPressed: () {
+                final currentList =
+                    List<TextEditingController>.from(setlistControllers.value);
+                currentList.add(TextEditingController());
+                setlistControllers.value = currentList;
+              },
+              icon: const Icon(Icons.add, color: AppColors.textWhite),
+              label: const Text('Add Song',
+                  style: TextStyle(color: AppColors.textWhite)),
+            ),
+          ],
+        ),
+      ),
+      onConfirm: () async {
+        final setlist = setlistControllers.value
+            .map((c) => c.text.trim())
+            .where((text) => text.isNotEmpty)
+            .toList();
+
+        if (setlist.isEmpty) {
+          throw Exception('Set list cannot be empty');
+        }
+
+        await _firebaseService.updateConcertDetails(
+          concertId,
+          concertMusic: setlist,
         );
       },
     );
